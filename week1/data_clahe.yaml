@@ -1,0 +1,44 @@
+# CLAHE-Enhanced Dental X-ray Dataset
+# Experiment 3: Research-Grade Recall Boosting
+# Preprocessing: CLAHE (clip_limit=2.5, tiles=(8, 8))
+
+path: C:/Users/jaopi/Desktop/SP/week1/dataset_clahe
+train: images/train
+val: images/val
+
+nc: 32
+
+# FDI Notation Classes (Sequential Order)
+names:
+  0: "11"   # Upper Right Central Incisor
+  1: "12"   # Upper Right Lateral Incisor
+  2: "13"   # Upper Right Canine
+  3: "14"   # Upper Right First Premolar
+  4: "15"   # Upper Right Second Premolar
+  5: "16"   # Upper Right First Molar
+  6: "17"   # Upper Right Second Molar
+  7: "18"   # Upper Right Third Molar
+  8: "21"   # Upper Left Central Incisor
+  9: "22"   # Upper Left Lateral Incisor
+  10: "23"  # Upper Left Canine
+  11: "24"  # Upper Left First Premolar
+  12: "25"  # Upper Left Second Premolar
+  13: "26"  # Upper Left First Molar
+  14: "27"  # Upper Left Second Molar
+  15: "28"  # Upper Left Third Molar
+  16: "31"  # Lower Left Central Incisor
+  17: "32"  # Lower Left Lateral Incisor
+  18: "33"  # Lower Left Canine
+  19: "34"  # Lower Left First Premolar
+  20: "35"  # Lower Left Second Premolar
+  21: "36"  # Lower Left First Molar
+  22: "37"  # Lower Left Second Molar
+  23: "38"  # Lower Left Third Molar
+  24: "41"  # Lower Right Central Incisor
+  25: "42"  # Lower Right Lateral Incisor
+  26: "43"  # Lower Right Canine
+  27: "44"  # Lower Right First Premolar
+  28: "45"  # Lower Right Second Premolar
+  29: "46"  # Lower Right First Molar
+  30: "47"  # Lower Right Second Molar
+  31: "48"  # Lower Right Third Molar

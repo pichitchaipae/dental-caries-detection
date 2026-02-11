@@ -1,0 +1,95 @@
+Objective of the project(Goal):
+raw_dataset = C:\Users\jaopi\Desktop\SP\material
+week_now = week6
+status_done = 2/2
+sample_case = case1
+conda_env = D:\Users\jaopi\anaconda3\envs\sp_project
+
+1. เพื่อหาว่าฟันซึ่ไหน FDI Tooth ID → ตัวเลข 2 ตัว/พื้นที่ (week2-3), status=done
+    *** week2 is getting pixel_coordinates of each teeth in 1 case out of 500 cases, export to C:\Users\jaopi\Desktop\SP\week2\500-segmentation+recognition.
+    the data of each case export to json(~80.1MB).
+    *** week3 is using C:\Users\jaopi\Desktop\SP\week2\500-segmentation+recognition and using C:\Users\jaopi\Desktop\SP\material\500-roi for find
+    pixel_coordinates only caries point in each teeth in 1 case out of 500 cases, the data of each case export to json(~164KB).
+    1.1 using C:\Users\jaopi\Desktop\SP\week3\dental_analysis_output for dental caries in each 500 cases at json file.
+
+2. เพื่อหาว่าด้านไหน ซ้าย ขวา บทเคี้ยว 3 จาก 5 ด้าน → ***กำหนดชื่อด้านให้ถูก(1)-> Occlusal, Proximal (Mesial, and Distal) only. STATUS=DONE ✓
+    step:
+    2.1 study on PCA + Oriented Bounding Box (OBB) for หาว่าแบ่งด้านฟันแบบไหนดีสุด ✓
+    2.2 applying with sample(case1) of json file in C:\Users\jaopi\Desktop\SP\week3\dental_analysis_output with (2.1) ✓
+    2.3 review the result of (2.2), output: ได้ด้านของฟันผุ ✓
+
+to do list: 
+1. ปรับปรุงคุณภาพของ json, ปัจจุบัน C:\Users\jaopi\Desktop\SP\week5\surface_classification_output\case 1\case_1_diagnosis.json
+   ยังขาด caries_coordinates ของแต่ละซี่อยู่ ให้เพิ่มลงไป → STATUS=DONE ✓ (see enrich_week5_json.py)
+
+================================================================================
+week6 deliverables:
+================================================================================
+
+Core Pipeline Scripts:
+  - snodent_tooth_map.py         : SNODENT ↔ FDI mapping + surface code mapping
+  - xml_ground_truth_parser.py   : Task A – AIM XML parsing (tooth, surface, ROI coords, severity)
+  - multi_zone_classifier.py     : Task B – M-C-D Point Cloud Voting (MO/DO/MOD labels)
+                                   → PCA orientation normalization
+                                   → Quadrant-aware M/D flipping (FDI Q1/Q4 vs Q2/Q3)
+                                   → 5% threshold (G.V. Black "Any Involvement" standard)
+                                   → Connected-component noise removal (min 15 px clusters)
+                                   → Dominant + Extension labeling (e.g., "O dominant + M extension")
+  - evaluation_engine.py         : Task C – GT↔Pred matching, TP/FP/FN, Confusion Matrix, P/R/F1
+                                   → Uses MZ reclassified surfaces for surface accuracy
+  - enrich_week5_json.py         : Adds caries_coordinates + zone_label to week5 JSON → week6 output
+
+Visualization & Dashboard:
+  - validation_dashboard.py      : Per-case validation dashboard (Global View + PCA/M-C-D panels)
+                                   → 500 dashboards saved to evaluation_output/case N/validation_case_N.png
+
+Presentation & Analysis:
+  - select_hero_shots.py         : Cherry-pick best images for presentation into 4 categories:
+                                     1_The_Perfect_Match  (Top 20 TPs, highest IoU)     → 20 images
+                                     2_The_Complex_Win    (All TP with MO/DO/MOD)       → 328 images
+                                     3_The_AI_Eye_Potential (FP with confidence > 0.85) → 4 images
+                                     4_The_Honest_Mistake (random FP + FN for error analysis) → 20 images
+                                   → Output: presentation_hero_shots/ + hero_shots_manifest.json
+  - find_noise_examples.py       : Noise Removal Hunter – finds Top 10 before/after noise examples
+                                   → Generates per-tooth debug images + summary visualization
+                                   → Output: evaluation_output/noise_removal_summary.png
+  - presentation_script.md       : 5-slide presentation outline (EN) with speaker scripts + visual cues
+  - presentation_script_th.md    : Thai version of presentation script
+
+Debug / Test (can be deleted):
+  - _debug_accuracy.py           : Debug script for surface accuracy analysis
+  - _test_mz_refined.py          : Test script for refined MZ classifier
+
+Output Directories:
+  - evaluation_output/           : Per-case results (500 folders)
+      case N/
+        case_N_diagnosis.json           – enriched diagnosis with caries coordinates
+        case_N_evaluation.csv           – per-tooth GT↔Pred matching
+        validation_case_N.png           – validation dashboard image
+        noise_debug_tooth_*.png         – Before/After noise removal (where applicable)
+      evaluation_results.csv            – master CSV (2,272 rows, all cases)
+      evaluation_summary.json           – aggregate metrics
+      confusion_matrix_*.png            – confusion matrices
+      noise_removal_summary.png         – noise removal analysis visualization
+  - presentation_hero_shots/     : Cherry-picked images for presentation (372 total)
+      1_The_Perfect_Match/              – 20 images
+      2_The_Complex_Win/                – 328 images
+      3_The_AI_Eye_Potential/           – 4 images
+      4_The_Honest_Mistake/             – 20 images
+      hero_shots_manifest.json          – metadata for all selections
+
+================================================================================
+week6 Results (500 cases):
+================================================================================
+  TP = 1,821    FP = 293    FN = 158
+  Precision     = 0.8614
+  Recall        = 0.9202
+  F1-Score      = 0.8898
+  Surface Acc   = 0.8731     (up from 0.27 in week5 → 3.2× improvement)
+
+Key Fixes Applied:
+  1. Quadrant-aware Mesial/Distal orientation  (Surface Acc: 27% → 87%)
+  2. Point-cloud voting replacing single-centroid (captures multi-surface lesions)
+  3. 5% threshold per G.V. Black standard (was 20%)
+  4. Connected-component noise removal (min 15 px clusters)
+  5. Dominant + Extension labeling for nuanced classification

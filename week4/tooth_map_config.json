@@ -1,0 +1,75 @@
+{
+    "_metadata": {
+        "description": "Static coordinate mapping for FDI Tooth Numbering System",
+        "purpose": "Reference coordinates for Centroid Distance Method in tooth identification",
+        "coordinate_system": "Normalized coordinates (0-1) relative to standard 2D OPG image",
+        "note": "Coordinates are approximate and should be calibrated for specific imaging equipment",
+        "author": "Senior CV Engineer",
+        "version": "1.0.0",
+        "last_updated": "2026-01-27"
+    },
+    "_quadrant_info": {
+        "Q1_upper_right": "Teeth 11-18 (patient's upper right, image left side)",
+        "Q2_upper_left": "Teeth 21-28 (patient's upper left, image right side)",
+        "Q3_lower_left": "Teeth 31-38 (patient's lower left, image right side)",
+        "Q4_lower_right": "Teeth 41-48 (patient's lower right, image left side)"
+    },
+    "_fdi_naming": {
+        "first_digit": "Quadrant (1=upper right, 2=upper left, 3=lower left, 4=lower right)",
+        "second_digit": "Tooth position (1=central incisor, 8=third molar/wisdom tooth)"
+    },
+    "tooth_coordinates": {
+        "_comment": "Format: 'FDI_number': {'center_x': float, 'center_y': float, 'tooth_name': str}",
+        
+        "11": {"center_x": 0.470, "center_y": 0.300, "tooth_name": "Upper Right Central Incisor"},
+        "12": {"center_x": 0.430, "center_y": 0.290, "tooth_name": "Upper Right Lateral Incisor"},
+        "13": {"center_x": 0.385, "center_y": 0.295, "tooth_name": "Upper Right Canine"},
+        "14": {"center_x": 0.340, "center_y": 0.310, "tooth_name": "Upper Right First Premolar"},
+        "15": {"center_x": 0.295, "center_y": 0.320, "tooth_name": "Upper Right Second Premolar"},
+        "16": {"center_x": 0.240, "center_y": 0.340, "tooth_name": "Upper Right First Molar"},
+        "17": {"center_x": 0.180, "center_y": 0.360, "tooth_name": "Upper Right Second Molar"},
+        "18": {"center_x": 0.120, "center_y": 0.380, "tooth_name": "Upper Right Third Molar"},
+        
+        "21": {"center_x": 0.530, "center_y": 0.300, "tooth_name": "Upper Left Central Incisor"},
+        "22": {"center_x": 0.570, "center_y": 0.290, "tooth_name": "Upper Left Lateral Incisor"},
+        "23": {"center_x": 0.615, "center_y": 0.295, "tooth_name": "Upper Left Canine"},
+        "24": {"center_x": 0.660, "center_y": 0.310, "tooth_name": "Upper Left First Premolar"},
+        "25": {"center_x": 0.705, "center_y": 0.320, "tooth_name": "Upper Left Second Premolar"},
+        "26": {"center_x": 0.760, "center_y": 0.340, "tooth_name": "Upper Left First Molar"},
+        "27": {"center_x": 0.820, "center_y": 0.360, "tooth_name": "Upper Left Second Molar"},
+        "28": {"center_x": 0.880, "center_y": 0.380, "tooth_name": "Upper Left Third Molar"},
+        
+        "31": {"center_x": 0.530, "center_y": 0.680, "tooth_name": "Lower Left Central Incisor"},
+        "32": {"center_x": 0.565, "center_y": 0.670, "tooth_name": "Lower Left Lateral Incisor"},
+        "33": {"center_x": 0.605, "center_y": 0.660, "tooth_name": "Lower Left Canine"},
+        "34": {"center_x": 0.650, "center_y": 0.640, "tooth_name": "Lower Left First Premolar"},
+        "35": {"center_x": 0.700, "center_y": 0.620, "tooth_name": "Lower Left Second Premolar"},
+        "36": {"center_x": 0.755, "center_y": 0.590, "tooth_name": "Lower Left First Molar"},
+        "37": {"center_x": 0.815, "center_y": 0.560, "tooth_name": "Lower Left Second Molar"},
+        "38": {"center_x": 0.875, "center_y": 0.530, "tooth_name": "Lower Left Third Molar"},
+        
+        "41": {"center_x": 0.470, "center_y": 0.680, "tooth_name": "Lower Right Central Incisor"},
+        "42": {"center_x": 0.435, "center_y": 0.670, "tooth_name": "Lower Right Lateral Incisor"},
+        "43": {"center_x": 0.395, "center_y": 0.660, "tooth_name": "Lower Right Canine"},
+        "44": {"center_x": 0.350, "center_y": 0.640, "tooth_name": "Lower Right First Premolar"},
+        "45": {"center_x": 0.300, "center_y": 0.620, "tooth_name": "Lower Right Second Premolar"},
+        "46": {"center_x": 0.245, "center_y": 0.590, "tooth_name": "Lower Right First Molar"},
+        "47": {"center_x": 0.185, "center_y": 0.560, "tooth_name": "Lower Right Second Molar"},
+        "48": {"center_x": 0.125, "center_y": 0.530, "tooth_name": "Lower Right Third Molar"}
+    },
+    "image_regions": {
+        "_comment": "Approximate bounding regions for each quadrant",
+        "Q1_upper_right": {"x_min": 0.0, "x_max": 0.5, "y_min": 0.0, "y_max": 0.5},
+        "Q2_upper_left": {"x_min": 0.5, "x_max": 1.0, "y_min": 0.0, "y_max": 0.5},
+        "Q3_lower_left": {"x_min": 0.5, "x_max": 1.0, "y_min": 0.5, "y_max": 1.0},
+        "Q4_lower_right": {"x_min": 0.0, "x_max": 0.5, "y_min": 0.5, "y_max": 1.0}
+    },
+    "calibration_instructions": {
+        "step_1": "Take a standard OPG reference image with known tooth positions",
+        "step_2": "Mark the center point of each visible tooth",
+        "step_3": "Normalize coordinates by dividing by image width/height",
+        "step_4": "Update the tooth_coordinates section with calibrated values",
+        "step_5": "Test with multiple OPG images to verify accuracy",
+        "note": "Consider creating multiple config files for different imaging equipment"
+    }
+}

@@ -1,0 +1,11 @@
+# Core dependencies
+opencv-python
+numpy
+matplotlib
+tqdm
+
+# ML frameworks
+torch
+torchvision
+ultralytics
+detectron2

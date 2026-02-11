@@ -1,0 +1,55 @@
+# Dental X-ray Tooth Segmentation Dataset Configuration
+# Compatible with Pre-trained Model: Tooth_seg_pano_20250319.pt
+# YOLO11-seg Instance Segmentation with FDI Notation
+
+# Dataset paths (relative to this yaml file or absolute)
+path: ./dataset_v2  # New dataset directory with matched class order
+train: images/train  # Training images (80%)
+val: images/val  # Validation/Test images (20%)
+
+# Number of classes (32 permanent teeth in FDI notation)
+nc: 32
+
+# Class names mapping - MATCHES PRE-TRAINED MODEL ORDER
+# This order is SEQUENTIAL by FDI number within each quadrant
+
+names:
+  # Upper Right Quadrant (Q1) - Central incisor to Third molar (11-18)
+  0: "11"   # Upper Right Central Incisor
+  1: "12"   # Upper Right Lateral Incisor
+  2: "13"   # Upper Right Canine
+  3: "14"   # Upper Right First Premolar
+  4: "15"   # Upper Right Second Premolar
+  5: "16"   # Upper Right First Molar
+  6: "17"   # Upper Right Second Molar
+  7: "18"   # Upper Right Third Molar (Wisdom tooth)
+  
+  # Upper Left Quadrant (Q2) - Central incisor to Third molar (21-28)
+  8: "21"   # Upper Left Central Incisor
+  9: "22"   # Upper Left Lateral Incisor
+  10: "23"  # Upper Left Canine
+  11: "24"  # Upper Left First Premolar
+  12: "25"  # Upper Left Second Premolar
+  13: "26"  # Upper Left First Molar
+  14: "27"  # Upper Left Second Molar
+  15: "28"  # Upper Left Third Molar (Wisdom tooth)
+  
+  # Lower Left Quadrant (Q3) - Central incisor to Third molar (31-38)
+  16: "31"  # Lower Left Central Incisor
+  17: "32"  # Lower Left Lateral Incisor
+  18: "33"  # Lower Left Canine
+  19: "34"  # Lower Left First Premolar
+  20: "35"  # Lower Left Second Premolar
+  21: "36"  # Lower Left First Molar
+  22: "37"  # Lower Left Second Molar
+  23: "38"  # Lower Left Third Molar (Wisdom tooth)
+  
+  # Lower Right Quadrant (Q4) - Central incisor to Third molar (41-48)
+  24: "41"  # Lower Right Central Incisor
+  25: "42"  # Lower Right Lateral Incisor
+  26: "43"  # Lower Right Canine
+  27: "44"  # Lower Right First Premolar
+  28: "45"  # Lower Right Second Premolar
+  29: "46"  # Lower Right First Molar
+  30: "47"  # Lower Right Second Molar
+  31: "48"  # Lower Right Third Molar (Wisdom tooth)

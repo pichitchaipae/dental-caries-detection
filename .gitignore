@@ -1,0 +1,104 @@
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+*.pdb
+
+# =========================
+# Virtual Environments
+# =========================
+.venv/
+venv/
+ENV/
+env/
+.env
+
+# =========================
+# Distribution / Packaging
+# =========================
+build/
+dist/
+*.egg-info/
+*.egg
+*.whl
+
+# =========================
+# Jupyter Notebook
+# =========================
+.ipynb_checkpoints/
+
+# =========================
+# IDE / Editor
+# =========================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# =========================
+# OS-specific
+# =========================
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# =========================
+# Data / Large Files
+# =========================
+data/
+material/
+dataset/
+dataset_*/
+*.ply
+*.obj
+*.pcd
+*.stl
+*.h5
+*.hdf5
+*.zip
+*.tar.gz
+
+# =========================
+# YOLO / Model Weights
+# =========================
+*.pt
+*.onnx
+*.torchscript
+
+# =========================
+# Logs & Outputs
+# =========================
+*.log
+runs/
+
+# =========================
+# Generated Output Dirs
+# =========================
+*_output/
+*_output_*/
+*_standardized/
+inference_*/
+final_*/
+pretrained_test/
+test_new_model/
+500-segmentation+recognition/
+500-roi/
+presentation_hero_shots/
+
+# =========================
+# Archives & Binaries
+# =========================
+*.7z
+*.zip
+*.tar.gz
+*.rar
+
+# =========================
+# Local / Editor Configs
+# =========================
+.claude/

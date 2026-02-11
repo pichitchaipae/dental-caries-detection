@@ -1,0 +1,133 @@
+Objective of the project(Goal):
+raw_dataset = C:\Users\jaopi\Desktop\SP\material
+week_now = week5
+status_done = 2/2
+sample_case = case1
+conda_env = D:\Users\jaopi\anaconda3\envs\sp_project
+
+1. เพื่อหาว่าฟันซึ่ไหน FDI Tooth ID → ตัวเลข 2 ตัว/พื้นที่ (week2-3), status=done
+    *** week2 is getting pixel_coordinates of each teeth in 1 case out of 500 cases, export to C:\Users\jaopi\Desktop\SP\week2\500-segmentation+recognition.
+    the data of each case export to json(~80.1MB).
+    *** week3 is using C:\Users\jaopi\Desktop\SP\week2\500-segmentation+recognition and using C:\Users\jaopi\Desktop\SP\material\500-roi for find 
+    pixel_coordinates only caries point in each teeth in 1 case out of 500 cases, the data of each case export to json(~164KB).
+    1.1 using C:\Users\jaopi\Desktop\SP\week3\dental_analysis_output for dental caries in each 500 cases at json file.
+
+2. เพื่อหาว่าด้านไหน ซ้าย ขวา บทเคี้ยว 3 จาก 5 ด้าน → ***กำหนดชื่อด้านให้ถูก(1)-> Occlusal, Proximal (Mesial, and Distal) only. STATUS=DONE ✓
+    step:
+    2.1 study on PCA + Oriented Bounding Box (OBB) for หาว่าแบ่งด้านฟันแบบไหนดีสุด ✓
+    2.2 applying with sample(case1) of json file in C:\Users\jaopi\Desktop\SP\week3\dental_analysis_output with (2.1) ✓
+    2.3 review the result of (2.2), output: ได้ด้านของฟันผุ ✓
+
+================================================================================
+WEEK 5 IMPLEMENTATION COMPLETED & TESTED ✓
+================================================================================
+
+Test Results (Case 1):
+----------------------
+- Tooth 45 (lower jaw): Proximal (Left/Mesial) - Rotation: -31.6°
+- Tooth 15 (upper jaw): Lingual/Other - Rotation: -3.1°  
+- Tooth 35 (lower jaw): Lingual/Other - Rotation: 25.1°
+- Tooth 36 (lower jaw): Occlusal - Rotation: 49.1°
+- Tooth 46 (lower jaw): Occlusal - Rotation: -37.6°
+
+Synthetic Tests: 6/6 PASSED ✓
+
+Files Created:
+--------------
+1. caries_surface_classifier.py - Core classification module
+   - PCA-based tooth orientation normalization
+   - Geometric surface classification (no ML, pure math)
+   - Supports FDI notation (ISO 3950)
+   - Function: classify_caries_surface(tooth_id, tooth_poly, caries_poly) -> int
+
+2. process_surface_classification.py - Batch processing script
+   - Loads data from week2/week3 outputs
+   - Processes all 500 cases
+   - Exports CSV results and visualizations
+
+3. visualization_utils.py - Visualization utilities
+   - PCA alignment visualization
+   - Classification zone visualization
+   - Case overview generation
+
+4. test_classification.py - Test suite
+   - Synthetic data tests with known expected results
+   - Real case data tests from week3
+   - Validation visualizations
+
+Algorithm Overview (PCA + OBB Method):
+--------------------------------------
+Step 1. PCA Alignment:
+   - Convert tooth_polygon points to data matrix (Nx2)
+   - Perform PCA using cv2.PCACompute() to find eigenvectors
+   - Major eigenvector = primary direction of tooth elongation
+   - Calculate rotation angle to make major axis vertical (parallel to Y-axis)
+   
+Step 2. Rotation:
+   - Create 2x3 affine transformation matrix
+   - Apply rotation to both tooth_polygon and caries_polygon
+   - Use tooth centroid as pivot point
+   
+Step 3. Bounding Box:
+   - Calculate upright bounding box (x, y, w, h) of rotated tooth polygon
+   - This represents the "normalized" tooth extent
+   
+Step 4. Classification (Zone Mapping):
+   - Calculate relative position of caries centroid within bounding box
+   - rel_x = (caries_x - bbox_x) / bbox_width  [0.0 to 1.0]
+   - rel_y = (caries_y - bbox_y) / bbox_height [0.0 to 1.0]
+
+Classification Rules:
+---------------------
+   Class 0 (Occlusal): 
+     - Upper Jaw: rel_y >= 0.80 (bottom 20% of tooth)
+     - Lower Jaw: rel_y <= 0.20 (top 20% of tooth)
+   
+   Class 1 (Proximal):
+     - rel_x <= 0.20 (left 20%) OR rel_x >= 0.80 (right 20%)
+   
+   Class 2 (Lingual/Other):
+     - All other positions (center of tooth)
+
+Jaw Logic (FDI/ISO 3950 System):
+--------------------------------
+- Upper Jaw (Quadrant 1: 11-18, Quadrant 2: 21-28):
+  → In X-ray: Roots point UP (low Y), Crown/Occlusal points DOWN (high Y)
+  
+- Lower Jaw (Quadrant 3: 31-38, Quadrant 4: 41-48):
+  → In X-ray: Roots point DOWN (high Y), Crown/Occlusal points UP (low Y)
+
+Usage Examples:
+---------------
+# Test with synthetic data:
+python test_classification.py
+
+# Process single case with visualization:
+python process_surface_classification.py --mode sample --case 1
+
+# Process all 500 cases:
+python process_surface_classification.py --mode all --viz
+
+# Process range of cases:
+python process_surface_classification.py --mode range --start 1 --end 100 --viz
+
+Output Location:
+----------------
+C:\Users\jaopi\Desktop\SP\week5\surface_classification_output\
+  ├── surface_classification_results.csv (summary of all classifications)
+  └── case X\ (per-case folders)
+      ├── tooth_XX_classification.png (zone visualization)
+      └── tooth_XX_pca_alignment.png (PCA alignment visualization)
+
+Dependencies:
+-------------
+- opencv-python (cv2)
+- numpy
+- matplotlib
+- pandas
+
+References:
+-----------
+- OpenCV PCA Tutorial: https://docs.opencv.org/master/d1/dee/tutorial_introduction_to_pca.html
+- Image Moments: https://docs.opencv.org/master/d8/d23/classcv_1_1Moments.html
+- FDI Notation: https://en.wikipedia.org/wiki/FDI_World_Dental_Federation_notation
