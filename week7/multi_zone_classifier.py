@@ -366,9 +366,24 @@ def classify_multi_zone(
     other_mask = ~occ_mask & ~prox_left_mask & ~prox_right_mask
 
     # ── Sub-divide occlusal band into M / C / D ──────────────────────
-    # FIX: M/D Flip — Mesial faces the midline.
-    #   Q1/Q4 (patient-right): midline is to the RIGHT (+X) → high rel_xs = Mesial
-    #   Q2/Q3 (patient-left):  midline is to the LEFT  (−X) → low  rel_xs = Mesial
+    #
+    # FDI Quadrant Anatomy (must stay in sync with validation_dashboard):
+    #
+    #   In a panoramic X-ray the image is MIRRORED (patient faces you):
+    #     • Q1 (upper-right of patient) → LEFT side of image
+    #     • Q2 (upper-left  of patient) → RIGHT side of image
+    #     • Q3 (lower-left  of patient) → RIGHT side of image
+    #     • Q4 (lower-right of patient) → LEFT side of image
+    #
+    #   "Mesial" = surface TOWARD the midline (center of the arch).
+    #   "Distal" = surface AWAY from the midline.
+    #
+    #   After PCA rotation the tooth is upright.  +X = rightward.
+    #   For Q1/Q4 (image-LEFT): midline is to the RIGHT (+X)
+    #       → high rel_xs = Mesial,  low rel_xs = Distal
+    #   For Q2/Q3 (image-RIGHT): midline is to the LEFT (−X)
+    #       → low rel_xs  = Mesial,  high rel_xs = Distal
+    #
     third = 1.0 / 3.0
     quadrant = _get_quadrant(tooth_id)
 

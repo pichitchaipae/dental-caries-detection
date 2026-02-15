@@ -554,17 +554,39 @@ def draw_pca_mcd_panel(
         )
 
     # ── Classify each caries point into M/C/D zone ──────────────────
+    #
+    # FDI Quadrant Anatomy (critical for correct M/D assignment):
+    #
+    #   In a panoramic X-ray the image is MIRRORED (patient faces you):
+    #     • Q1 (upper-right of patient) → LEFT side of image
+    #     • Q2 (upper-left  of patient) → RIGHT side of image
+    #     • Q3 (lower-left  of patient) → RIGHT side of image
+    #     • Q4 (lower-right of patient) → LEFT side of image
+    #
+    #   "Mesial" = the surface TOWARD the midline (center of the arch).
+    #   "Distal" = the surface AWAY from the midline.
+    #
+    #   After PCA rotation the tooth is upright.  The rotation is small
+    #   (clamped to ±45°), so +X in the rotated space corresponds to
+    #   +X (rightward) in the original image.
+    #
+    #   For Q1/Q4 teeth (image-LEFT): midline is to the RIGHT (+X)
+    #       → high rel_xs = Mesial,  low rel_xs = Distal
+    #   For Q2/Q3 teeth (image-RIGHT): midline is to the LEFT (−X)
+    #       → low rel_xs  = Mesial,  high rel_xs = Distal
+    #
     quadrant = _get_quadrant(tooth_id)
 
     rel_xs = np.clip((rot_caries[:, 0] - bx_min) / bw, 0, 1)
     third = 1.0 / 3.0
 
-    # FIX: M/D Flip — Q1/Q4 mesial = right (+X), Q2/Q3 mesial = left (−X)
     if quadrant in [1, 4]:
+        # Q1/Q4: Mesial (+X, right), Distal (−X, left)
         d_mask = rel_xs < third
         c_mask = (rel_xs >= third) & (rel_xs <= 2 * third)
         m_mask = rel_xs > 2 * third
     else:
+        # Q2/Q3: Mesial (−X, left), Distal (+X, right)
         m_mask = rel_xs < third
         c_mask = (rel_xs >= third) & (rel_xs <= 2 * third)
         d_mask = rel_xs > 2 * third
@@ -599,6 +621,8 @@ def draw_pca_mcd_panel(
         )
 
     # ── Build zone label using MZ result if available ────────────────
+    # Prefer the classifier's output (which uses the same FDI quadrant
+    # rules) so that the "Pred:" text exactly matches evaluation_engine.
     if mz_result and mz_result.get("predicted_detail", "N/A") != "N/A":
         zone_label = mz_result["predicted_detail"]
         mz_fracs = mz_result.get("all_zone_fractions", {})
@@ -643,7 +667,9 @@ def draw_pca_mcd_panel(
     )
 
     # ── Zone labels on the plot ──────────────────────────────────────
-    # FIX: M/D Flip — label positions match corrected zone assignment
+    # Label positions MUST match the zone mask logic above:
+    #   Q1/Q4: M on RIGHT (0.88), D on LEFT (0.12)
+    #   Q2/Q3: M on LEFT  (0.12), D on RIGHT (0.88)
     zone_labels_pos = [
         ("M", ZONE_M_COLOR, 0.88 if quadrant in [1, 4] else 0.12),
         ("C", ZONE_C_COLOR, 0.50),
@@ -691,9 +717,18 @@ def generate_dashboard(case_num: int, dpi: int = 150, verbose: bool = True):
     gt_folder = MATERIAL_DIR / f"case {case_num}"
     gt_annotations = parse_case_xmls(str(gt_folder))
 
-    predictions = load_week5_predictions(case_num)
+    predictions_raw = load_week5_predictions(case_num)
     week_lookup = load_week7_caries(case_num)              # week7 caries data
     week2_teeth = load_week2_teeth(case_num)
+
+    # ── Task 5 FIX: Phantom False Positives ──────────────────────────
+    # Filter out teeth where week7 erosion set has_caries=False.
+    # These are True Negatives and must not appear as predictions in
+    # the panoramic view, header metrics, or per-tooth panels.
+    predictions = [
+        p for p in predictions_raw
+        if week_lookup.get(p.get("tooth_id", ""), {}).get("has_caries", False)
+    ]
 
     # ── Compute match status ─────────────────────────────────────────
     tooth_status, matched, fps, fns = compute_match_status(

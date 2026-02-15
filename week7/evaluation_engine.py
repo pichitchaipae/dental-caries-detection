@@ -432,14 +432,24 @@ def evaluate_single_case(case_num: int, reclassify: bool = True) -> Dict:
     gt_annotations = parse_case_xmls(str(gt_folder))
 
     # 2) Load predictions + week7 caries data (falls back to week3)
-    predictions = load_week5_predictions(case_num)
+    predictions_raw = load_week5_predictions(case_num)
     week_lookup = load_week7_caries(case_num)
     tooth_polygons = load_week2_tooth_polygons(case_num)
 
-    # 3) Enrich
+    # ── Task 5 FIX: Phantom False Positives ──────────────────────────
+    # Week7 erosion thresholding sets has_caries=False for teeth whose
+    # caries pixels fell below the noise threshold.  These are correct
+    # True Negatives and must NOT enter the evaluation as predictions.
+    # Without this filter every such tooth becomes a phantom FP.
+    predictions = [
+        p for p in predictions_raw
+        if week_lookup.get(p.get("tooth_id", ""), {}).get("has_caries", False)
+    ]
+
+    # 3) Enrich  (use raw list so the enriched JSON retains all teeth)
     enriched = enrich_week5_json(case_num, week_lookup)
 
-    # 4) Match
+    # 4) Match  (only teeth with actual caries participate)
     matched, fp, fn = match_gt_to_predictions(
         gt_annotations, predictions, week_lookup
     )

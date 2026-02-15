@@ -107,34 +107,34 @@
   ],
   "4_Missing_Upstream_Data_Logging": [
     {
-      "case": 75,
-      "tooth_id": 16,
+      "case": 284,
+      "tooth_id": 46,
       "gt_surface": "Proximal",
-      "fn_in_case": 3
+      "fn_in_case": 7
     },
     {
-      "case": 195,
-      "tooth_id": 48,
+      "case": 399,
+      "tooth_id": 24,
       "gt_surface": "Proximal",
-      "fn_in_case": 3
+      "fn_in_case": 7
+    },
+    {
+      "case": 36,
+      "tooth_id": 16,
+      "gt_surface": "Proximal",
+      "fn_in_case": 5
+    },
+    {
+      "case": 40,
+      "tooth_id": 37,
+      "gt_surface": "Proximal",
+      "fn_in_case": 5
     },
     {
       "case": 206,
-      "tooth_id": 15,
+      "tooth_id": 26,
       "gt_surface": "Proximal",
-      "fn_in_case": 3
-    },
-    {
-      "case": 248,
-      "tooth_id": 25,
-      "gt_surface": "Proximal",
-      "fn_in_case": 3
-    },
-    {
-      "case": 311,
-      "tooth_id": 35,
-      "gt_surface": "Proximal",
-      "fn_in_case": 3
+      "fn_in_case": 5
     }
   ],
   "5_Overall_Dashboard_Summary": [
@@ -145,8 +145,8 @@
       "strict_accuracy": 1.0
     },
     {
-      "case": 5,
-      "n_teeth": 7,
+      "case": 378,
+      "n_teeth": 8,
       "soft_accuracy": 1.0,
       "strict_accuracy": 1.0
     },
@@ -163,7 +163,7 @@
       "strict_accuracy": 1.0
     },
     {
-      "case": 35,
+      "case": 5,
       "n_teeth": 6,
       "soft_accuracy": 1.0,
       "strict_accuracy": 1.0
