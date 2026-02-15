@@ -1,19 +1,18 @@
+# Dental Caries & Surface Detection System
+
 ```html
-<div align="center">
+<p align="center">
   <img src="logoict.png" width="200" alt="ICT Mahidol Logo">
-  
+</p>
+```
 
-  # Dental Caries & Surface Detection System
-
-  ![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)
-  ![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-EE4C2C?logo=pytorch&logoColor=white)
-  ![YOLO](https://img.shields.io/badge/YOLO-v8%2Fv11-00FFFF)
-  ![OpenCV](https://img.shields.io/badge/OpenCV-4.x-5C3EE8?logo=opencv&logoColor=white)
-  ![Precision](https://img.shields.io/badge/Precision-99.1%25-brightgreen)
-  ![F1 Score](https://img.shields.io/badge/F1--Score-0.8337-blue)
-  ![License](https://img.shields.io/badge/License-Academic-yellow)
-
-</div>
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)
+![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-EE4C2C?logo=pytorch&logoColor=white)
+![YOLO](https://img.shields.io/badge/YOLO-v8%2Fv11-00FFFF)
+![OpenCV](https://img.shields.io/badge/OpenCV-4.x-5C3EE8?logo=opencv&logoColor=white)
+![Precision](https://img.shields.io/badge/Precision-99.1%25-brightgreen)
+![F1 Score](https://img.shields.io/badge/F1--Score-0.8337-blue)
+![License](https://img.shields.io/badge/License-Academic-yellow)
 
 A multi-stage computer vision pipeline for automated **dental caries detection** and **surface classification** from panoramic dental X-rays (OPG). The system identifies caries lesions, maps them to specific teeth using FDI notation, and classifies the affected surface (Occlusal, Mesial, Distal, Lingual) using PCA-based orientation analysis and point-cloud voting.
 
@@ -119,64 +118,80 @@ Evaluated on **500 panoramic dental X-ray cases** with expert-annotated AIM-XML 
 
 Input: 500 panoramic dental X-rays (OPG) with expert-annotated AIM-XML ground truth.
 
+```html
 <p align="center">
   <img src="docs/images/raw_panoramic_xray.png" alt="Raw Panoramic X-ray (Case 1)" width="700">
   <br><em>Raw panoramic dental X-ray — Case 1</em>
 </p>
+```
 
 ### Week 1 — Tooth Segmentation Training
 
 Trained YOLOv11m-seg on 500 cases (32 FDI tooth classes, 80/20 split).
 
+```html
 <p align="center">
   <img src="docs/images/week1_training_curves.png" alt="Week 1 Training Curves" width="700">
   <br><em>YOLOv11m-seg training curves — loss convergence and mAP over epochs</em>
 </p>
+```
 
 ### Week 2 — Tooth Detection & Segmentation
 
 Two-stage pipeline: YOLO panoramic detection followed by Detectron2 instance segmentation.
 
+```html
 <p align="center">
   <img src="docs/images/week2_tooth_detection.png" alt="Week 2 Tooth Detection" width="700">
   <br><em>YOLO tooth detection — bounding boxes with FDI labels (Case 1)</em>
 </p>
+```
 
 ### Week 3 — Caries-to-Tooth Mapping
 
 Overlay binary ROI masks onto tooth polygons to assign caries regions to specific teeth.
 
+```html
+
 <p align="center">
   <img src="docs/images/week3_caries_mapping.png" alt="Week 3 Caries Mapping" width="700">
   <br><em>Caries-to-tooth pixel containment alignment (Case 1)</em>
 </p>
+```
 
 ### Week 4 — Caries Detection Model
 
 Trained YOLOv8s on 3 caries classes (Occlusal, Proximal, Lingual).
 
+```html
+
 <p align="center">
   <img src="docs/images/week4_caries_training_curves.png" alt="Week 4 Caries Training" width="700">
   <br><em>YOLOv8s caries detection training curves</em>
 </p>
+```
 
 ### Week 5 — Surface Classification v1
 
 PCA-based orientation normalization with OBB zone classification per tooth.
 
+```html
 <p align="center">
   <img src="docs/images/week5_surface_classification.png" alt="Week 5 Surface Classification" width="500">
   <br><em>PCA orientation + surface zone assignment — Tooth 15 (Case 1)</em>
 </p>
+```
 
 ### Week 7 — Final Production Output
 
 Pipeline hardening with 6 bug fixes: PCA eigenvector correction, boundary erosion, M/D flip fix, soft surface matching, and phantom FP elimination.
 
+```html
 <p align="center">
   <img src="week7/hero_shots/5_Overall_Dashboard_Summary/case_274_8teeth_soft100pct_strict100pct.png" alt="Final Validation Dashboard — Case 274" width="800">
   <br><em>Final validation dashboard — Case 274 (8 teeth, 100% soft accuracy, 100% strict accuracy)</em>
 </p>
+```
 
 ---
 
