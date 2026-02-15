@@ -1,12 +1,18 @@
-# Dental Caries & Surface Detection System
+<p align="center">
+  <img src="logoict.png" alt="ICT Mahidol" width="120">
+</p>
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)
-![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-EE4C2C?logo=pytorch&logoColor=white)
-![YOLO](https://img.shields.io/badge/YOLO-v8%2Fv11-00FFFF)
-![OpenCV](https://img.shields.io/badge/OpenCV-4.x-5C3EE8?logo=opencv&logoColor=white)
-![Precision](https://img.shields.io/badge/Precision-99.1%25-brightgreen)
-![F1 Score](https://img.shields.io/badge/F1--Score-0.8337-blue)
-![License](https://img.shields.io/badge/License-Academic-yellow)
+<h1 align="center">Dental Caries & Surface Detection System</h1>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white" alt="Python">
+  <img src="https://img.shields.io/badge/PyTorch-2.0%2B-EE4C2C?logo=pytorch&logoColor=white" alt="PyTorch">
+  <img src="https://img.shields.io/badge/YOLO-v8%2Fv11-00FFFF" alt="YOLO">
+  <img src="https://img.shields.io/badge/OpenCV-4.x-5C3EE8?logo=opencv&logoColor=white" alt="OpenCV">
+  <img src="https://img.shields.io/badge/Precision-99.1%25-brightgreen" alt="Precision">
+  <img src="https://img.shields.io/badge/F1--Score-0.8337-blue" alt="F1 Score">
+  <img src="https://img.shields.io/badge/License-Academic-yellow" alt="License">
+</p>
 
 A multi-stage computer vision pipeline for automated **dental caries detection** and **surface classification** from panoramic dental X-rays (OPG). The system identifies caries lesions, maps them to specific teeth using FDI notation, and classifies the affected surface (Occlusal, Mesial, Distal, Lingual) using PCA-based orientation analysis and point-cloud voting.
 
@@ -18,9 +24,9 @@ A multi-stage computer vision pipeline for automated **dental caries detection**
 
 | Name | Student ID | GitHub | Email |
 | :--- | :--- | :--- | :--- |
-| **Sukollapat Pisuchpen** (Pond) | 6687052 | [@SukollapatPis](https://github.com/SukollapatPis) | <sukollapat.pis@gmail.com> |
-| **Pichitchai Paecharoenchai** (Jao) | 6687033 | [@pichitchaipae](https://github.com/pichitchaipae) | <jao.pichitchai@gmail.com> |
 | **Naris Pholpak** (Phai) | 6687025 | [@1tshadowz](https://github.com/1tshadowz) | <phainaris@gmail.com> |
+| **Pichitchai Paecharoenchai** (Jao) | 6687033 | [@pichitchaipae](https://github.com/pichitchaipae) | <jao.pichitchai@gmail.com> |
+| **Sukollapat Pisuchpen** (Pond) | 6687052 | [@SukollapatPis](https://github.com/SukollapatPis) | <sukollapat.pis@gmail.com> |
 
 **Faculty:** Faculty of Information and Communication Technology (ICT), Mahidol University
 **Advisor:** Dr. Sirawich Vachmanus (<sirawich.vac@mahidol.ac.th>)
@@ -110,12 +116,6 @@ Evaluated on **500 panoramic dental X-ray cases** with expert-annotated AIM-XML 
 
 <p align="center">
   <img src="week7/hero_shots/5_Overall_Dashboard_Summary/case_5_6teeth_soft100pct_strict100pct.png" alt="Validation Dashboard — Case 5" width="800">
-</p>
-
-**Per-tooth PCA orientation fix** — eigenvector correction for squarish molars with M-C-D zone voting:
-
-<p align="center">
-  <img src="week7/hero_shots/3_Squarish_Molar_PCA_Fix_Win/case_3_tooth48_MOD_angle0.0.png" alt="PCA Fix — Tooth 48 MOD" width="800">
 </p>
 
 ---
