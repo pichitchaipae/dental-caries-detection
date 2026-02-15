@@ -2,7 +2,7 @@
 
 A multi-stage computer vision pipeline for automated **dental caries detection** and **surface classification** from panoramic dental X-rays (OPG). The system identifies caries lesions, maps them to specific teeth using FDI notation, and classifies the affected surface (Occlusal, Mesial, Distal, Lingual) using PCA-based orientation analysis and point-cloud voting.
 
-> **Final Performance:** Precision **86.1%** · Recall **92.0%** · F1-Score **89.0%** · Surface Accuracy **87.3%**
+> **Final Performance (Week 7):** Precision **83.7%** · Recall **89.4%** · F1-Score **86.4%** · Soft Surface Accuracy **88.9%**
 
 ---
 
@@ -79,15 +79,18 @@ Evaluated on **500 panoramic dental X-ray cases** with expert-annotated AIM-XML 
 
 | Metric | Value |
 | :--- | :--- |
-| True Positives (TP) | 1,821 |
-| False Positives (FP) | 293 |
-| False Negatives (FN) | 158 |
-| **Precision** | **0.8614** |
-| **Recall** | **0.9202** |
-| **F1-Score** | **0.8898** |
-| **Surface Accuracy** | **0.8731** |
+| True Positives (TP) | 1,769 |
+| False Positives (FP) | 345 |
+| False Negatives (FN) | 210 |
+| **Precision** | **0.8368** |
+| **Recall** | **0.8939** |
+| **F1-Score** | **0.8644** |
+| **Strict Surface Accuracy** | **0.6659** |
+| **Soft Surface Accuracy** | **0.8892** |
 
-> Surface accuracy improved from **27% → 87%** (3.2× gain) after introducing Multi-Zone Point-Cloud Voting in Week 6.
+> Surface accuracy improved from **27% → 89%** (3.3× gain) after introducing Multi-Zone Point-Cloud Voting (Week 6) and 4-rule PCA orientation fixes (Week 7).
+>
+> "Soft" accuracy counts Proximal ↔ Mesial/Distal as correct; "Strict" requires exact surface name.
 
 ---
 
@@ -111,7 +114,7 @@ SP/
 │   ├── process_500_cases.py            #   Batch processing: YOLO + Detectron2 pipeline
 │   └── README_500_cases.md             #   Processing documentation
 │
-├── week3/                              # Caries-to-Tooth Mapping
+├── week3/                              # Caries-to-Tooth Mapping (v1)
 │   └── dental_caries_analysis.py       #   Overlay tooth coords on ROI masks
 │
 ├── week4/                              # Caries Detection Pipeline
@@ -119,23 +122,35 @@ SP/
 │   ├── train_caries.py                 #   Train caries detection model (3-class)
 │   ├── prepare_caries_dataset.py       #   Extract caries annotations → YOLO format
 │   ├── run_full_batch_v3_advanced.py   #   Production batch processor (500 cases)
-│   ├── main/                           #   Production inference scripts
+│   ├── main/                           #   High-accuracy inference config variant
 │   └── README.md                       #   Pipeline documentation
 │
-├── week5/                              # Surface Classification (PCA + OBB)
+├── week5/                              # Surface Classification v1 (PCA + OBB)
 │   ├── caries_surface_classifier.py    #   PCA-based surface zone classifier
 │   ├── process_surface_classification.py  # Batch surface classification
 │   ├── visualization_utils.py          #   Debug visualization tools
 │   └── test_classification.py          #   Unit tests
 │
-├── week6/                              # Evaluation & Final Pipeline
-│   ├── multi_zone_classifier.py        #   M-C-D Point-Cloud Voting classifier
-│   ├── evaluation_engine.py            #   End-to-end evaluation pipeline
+├── week6/                              # Surface Classification v2 + Evaluation (baseline)
+│   ├── multi_zone_classifier.py        #   M-C-D Point-Cloud Voting classifier (v1)
+│   ├── evaluation_engine.py            #   End-to-end evaluation pipeline (v1)
 │   ├── xml_ground_truth_parser.py      #   AIM-XML ground truth parser
 │   ├── snodent_tooth_map.py            #   SNODENT code → FDI notation mapper
-│   ├── validation_dashboard.py         #   Results visualization dashboard
+│   ├── validation_dashboard.py         #   Results visualization dashboard (v1)
 │   ├── presentation_script.md          #   Final presentation script
 │   └── ...
+│
+├── week7/                              # Pipeline Hardening & Final Evaluation
+│   ├── multi_zone_classifier.py        #   4-rule PCA orientation + M/D flip fix
+│   ├── evaluation_engine.py            #   Soft-match evaluation + pca_clamped flag
+│   ├── dental_caries_analysis.py       #   Boundary erosion + unassigned caries
+│   ├── validation_dashboard.py         #   Per-tooth PCA debug dashboard
+│   ├── select_hero_shots_v2.py         #   5-category hero-shot selector
+│   ├── snodent_tooth_map.py            #   importlib wrapper → week6
+│   ├── xml_ground_truth_parser.py      #   importlib wrapper → week6
+│   ├── dental_analysis_output/         #   500-case caries mapping + dashboards
+│   ├── evaluation_output/              #   Final eval CSV + confusion matrices
+│   └── hero_shots/                     #   25 curated validation dashboards
 │
 ├── requirements.txt                    # Python dependencies
 ├── .gitignore
@@ -194,7 +209,8 @@ pip install 'git+https://github.com/facebookresearch/detectron2.git'
 | **3** | Caries-to-Tooth Mapping | Overlay tooth coordinates on binary ROI caries masks | Caries mapping per tooth (JSON + CSV) |
 | **4** | Caries Detection Pipeline | Train YOLOv8s (3-class) + build full inference pipeline | Caries bounding boxes + tooth mapping |
 | **5** | Surface Classification v1 | PCA orientation + OBB zone classification | Surface labels (O/P/L) |
-| **6** | Surface Classification v2 + Evaluation | Multi-Zone M-C-D Point-Cloud Voting + full evaluation | **F1=0.89, Surface Acc=87%** |
+| **6** | Surface Classification v2 + Evaluation | Multi-Zone M-C-D Point-Cloud Voting + full evaluation | F1=0.89, Surface Acc=87% (baseline) |
+| **7** | Pipeline Hardening | 4-rule PCA fix, boundary erosion, M/D flip fix, soft-match eval | **F1=0.86, Soft Acc=89%** |
 
 ---
 

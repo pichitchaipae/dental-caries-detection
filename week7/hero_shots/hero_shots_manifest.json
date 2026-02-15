@@ -1,0 +1,173 @@
+{
+  "1_Fallback_Angle_Clamp_Win": [
+    {
+      "case": 33,
+      "tooth_id": 37,
+      "detail": "DO",
+      "surface_match": "True_with_warning",
+      "pca_clamped": true
+    },
+    {
+      "case": 1,
+      "tooth_id": 45,
+      "detail": "O",
+      "surface_match": "True_with_warning",
+      "pca_clamped": true
+    },
+    {
+      "case": 3,
+      "tooth_id": 48,
+      "detail": "MOD",
+      "surface_match": "True",
+      "pca_clamped": true
+    },
+    {
+      "case": 4,
+      "tooth_id": 48,
+      "detail": "MO",
+      "surface_match": "True",
+      "pca_clamped": true
+    },
+    {
+      "case": 5,
+      "tooth_id": 34,
+      "detail": "D",
+      "surface_match": "True",
+      "pca_clamped": true
+    }
+  ],
+  "2_Rescued_TP_Soft_Match_Win": [
+    {
+      "case": 311,
+      "tooth_id": 25,
+      "detail": "DO",
+      "gt_surface": "Proximal",
+      "surface_match": "Partial"
+    },
+    {
+      "case": 54,
+      "tooth_id": 16,
+      "detail": "MOD",
+      "gt_surface": "Proximal",
+      "surface_match": "True_with_warning"
+    },
+    {
+      "case": 75,
+      "tooth_id": 24,
+      "detail": "MOD",
+      "gt_surface": "Proximal",
+      "surface_match": "True_with_warning"
+    },
+    {
+      "case": 161,
+      "tooth_id": 25,
+      "detail": "MOD",
+      "gt_surface": "Proximal",
+      "surface_match": "True_with_warning"
+    },
+    {
+      "case": 186,
+      "tooth_id": 36,
+      "detail": "MOD",
+      "gt_surface": "Proximal",
+      "surface_match": "True_with_warning"
+    }
+  ],
+  "3_Squarish_Molar_PCA_Fix_Win": [
+    {
+      "case": 4,
+      "tooth_id": 18,
+      "detail": "O",
+      "rotation_angle_deg": -28.95
+    },
+    {
+      "case": 5,
+      "tooth_id": 28,
+      "detail": "MOD",
+      "rotation_angle_deg": -3.43
+    },
+    {
+      "case": 23,
+      "tooth_id": 38,
+      "detail": "DO",
+      "rotation_angle_deg": 0.0
+    },
+    {
+      "case": 3,
+      "tooth_id": 48,
+      "detail": "MOD",
+      "rotation_angle_deg": 0.0
+    },
+    {
+      "case": 4,
+      "tooth_id": 48,
+      "detail": "MO",
+      "rotation_angle_deg": 0.0
+    }
+  ],
+  "4_Missing_Upstream_Data_Logging": [
+    {
+      "case": 75,
+      "tooth_id": 16,
+      "gt_surface": "Proximal",
+      "fn_in_case": 3
+    },
+    {
+      "case": 195,
+      "tooth_id": 48,
+      "gt_surface": "Proximal",
+      "fn_in_case": 3
+    },
+    {
+      "case": 206,
+      "tooth_id": 15,
+      "gt_surface": "Proximal",
+      "fn_in_case": 3
+    },
+    {
+      "case": 248,
+      "tooth_id": 25,
+      "gt_surface": "Proximal",
+      "fn_in_case": 3
+    },
+    {
+      "case": 311,
+      "tooth_id": 35,
+      "gt_surface": "Proximal",
+      "fn_in_case": 3
+    }
+  ],
+  "5_Overall_Dashboard_Summary": [
+    {
+      "case": 274,
+      "n_teeth": 8,
+      "soft_accuracy": 1.0,
+      "strict_accuracy": 1.0
+    },
+    {
+      "case": 5,
+      "n_teeth": 7,
+      "soft_accuracy": 1.0,
+      "strict_accuracy": 1.0
+    },
+    {
+      "case": 195,
+      "n_teeth": 7,
+      "soft_accuracy": 1.0,
+      "strict_accuracy": 1.0
+    },
+    {
+      "case": 314,
+      "n_teeth": 7,
+      "soft_accuracy": 1.0,
+      "strict_accuracy": 1.0
+    },
+    {
+      "case": 35,
+      "n_teeth": 6,
+      "soft_accuracy": 1.0,
+      "strict_accuracy": 1.0
+    }
+  ],
+  "total_images": 25
+}
