@@ -296,7 +296,7 @@ python select_hero_shots_v2.py
 ```
 
 | | Detail |
-|---|--------|
+| --- | -------- |
 | **Reads** | `evaluation_results.csv` + dashboard PNGs from Step 3 |
 | **Writes** | `week7/hero_shots/` (5 category folders + manifest JSON) |
 | **Runtime** | < 1 min |
@@ -331,7 +331,7 @@ This runs both caries mapping and evaluation on Cases 311 + 33, and prints a per
 
 Copy-paste this entire block to reproduce all results from scratch:
 
-### PowerShell (Windows):
+### PowerShell (Windows)
 
 ```powershell
 cd week7
@@ -355,7 +355,7 @@ python validation_dashboard.py
 python select_hero_shots_v2.py
 ```
 
-### Bash (Linux/macOS):
+### Bash (Linux/macOS)
 
 ```bash
 cd week7
@@ -386,7 +386,7 @@ Total runtime: **~2 hours** on a modern machine.
 ### Source Files (in git)
 
 | File | Role | Depends On |
-|------|------|------------|
+| ------ | ------ | ------------ |
 | `dental_caries_analysis.py` | Step 1 — caries mapping | week2, material/500-roi |
 | `evaluation_engine.py` | Step 2 — evaluation | material/GT XMLs, week2, week5, Step 1 output |
 | `validation_dashboard.py` | Step 3 — dashboards | material/X-rays + GT, week2, week5, Step 1 output |
@@ -400,14 +400,14 @@ Total runtime: **~2 hours** on a modern machine.
 ### Output Directories (gitignored)
 
 | Directory | Created By | Contents |
-|-----------|------------|----------|
+| ----------- | ------------ | ---------- |
 | `dental_analysis_output/` | Steps 1 & 3 | 500 case folders with `*_caries_mapping.json` + `validation_*.png` |
 | `evaluation_output/` | Step 2 | `evaluation_results.csv`, `evaluation_summary.json`, confusion matrices |
 | `hero_shots/` | Step 4 | 5 category folders (25 PNGs) + `hero_shots_manifest.json` |
 
 ### Dependency Flow
 
-```
+```text
 material/500-roi/          ─┐
 week2/500-segmentation+    ─┤──→ Step 1: dental_caries_analysis.py
 recognition/                │         ↓
@@ -434,7 +434,7 @@ annotation/ (*.png)         │         ↓
 ## 9. Expected Metrics
 
 | Metric | Value |
-|--------|-------|
+| -------- | ------- |
 | Cases Processed | 500 |
 | Ground Truth Annotations | 1,979 |
 | True Positives (TP) | 1,424 |
@@ -451,7 +451,7 @@ annotation/ (*.png)         │         ↓
 ## 10. Bug Fixes Applied in Week 7
 
 | Task | Bug | Fix |
-|------|-----|-----|
+| ------ | ----- | ----- |
 | **Task 1** | PCA eigenvectors swapped for near-square molars → wrong M/D orientation | 4-rule PCA: verticality check, occlusal/apical flip, mesial/distal flip, ±45° angle clamp |
 | **Task 2** | Overlapping tooth masks cause boundary leakage → false caries | 5 px morphological erosion on each tooth mask before caries overlap |
 | **Task 3** | Caries outside all tooth polygons silently dropped | Unassigned blobs logged in JSON under `unassigned_caries` |

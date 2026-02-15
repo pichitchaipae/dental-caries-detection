@@ -1,12 +1,20 @@
-# 🦷 Dental Caries & Surface Detection System
+# Dental Caries & Surface Detection System
+
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)
+![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-EE4C2C?logo=pytorch&logoColor=white)
+![YOLO](https://img.shields.io/badge/YOLO-v8%2Fv11-00FFFF)
+![OpenCV](https://img.shields.io/badge/OpenCV-4.x-5C3EE8?logo=opencv&logoColor=white)
+![Precision](https://img.shields.io/badge/Precision-99.1%25-brightgreen)
+![F1 Score](https://img.shields.io/badge/F1--Score-0.8337-blue)
+![License](https://img.shields.io/badge/License-Academic-yellow)
 
 A multi-stage computer vision pipeline for automated **dental caries detection** and **surface classification** from panoramic dental X-rays (OPG). The system identifies caries lesions, maps them to specific teeth using FDI notation, and classifies the affected surface (Occlusal, Mesial, Distal, Lingual) using PCA-based orientation analysis and point-cloud voting.
 
-> **Final Performance (Week 7):** Precision **99.1%** · Recall **72.0%** · F1-Score **83.4%** · Soft Surface Accuracy **100%**
+> **Final Performance (Week 7):** Precision **99.1%** | Recall **72.0%** | F1-Score **83.4%** | Soft Surface Accuracy **100%**
 
 ---
 
-## 👥 Team Members
+## Team Members
 
 | Name | Student ID | GitHub | Email |
 | :--- | :--- | :--- | :--- |
@@ -19,26 +27,26 @@ A multi-stage computer vision pipeline for automated **dental caries detection**
 
 ---
 
-## 🎯 Project Objectives
+## Project Objectives
 
-### 1. Tooth Segmentation & Identification (FDI Notation) ✅ Completed
+### 1. Tooth Segmentation & Identification (FDI Notation)
 
 - Segment and identify all 32 teeth in panoramic X-rays using the FDI (ISO 3950) two-digit notation system.
 - Two-stage approach: YOLO panoramic detection → Detectron2 fine segmentation.
 
-### 2. Caries Detection ✅ Completed
+### 2. Caries Detection
 
 - Detect dental caries lesions using YOLOv8s trained on 3 classes: **Occlusal**, **Proximal**, and **Lingual**.
 - Map detected caries to specific teeth via pixel-level containment matching.
 
-### 3. Caries Surface Classification ✅ Completed
+### 3. Caries Surface Classification
 
 - Classify the specific surface affected by caries using PCA orientation normalization and **Multi-Zone Point-Cloud Voting** (Mesial / Central / Distal zones).
 - Generates combined surface labels: **O, MO, DO, MOD, L**, etc.
 
 ---
 
-## 🏗️ Pipeline Architecture
+## Pipeline Architecture
 
 ```text
 ┌──────────────────────────────────────────────────────────────────────┐
@@ -76,7 +84,7 @@ A multi-stage computer vision pipeline for automated **dental caries detection**
 
 ---
 
-## 📊 Results
+## Results
 
 Evaluated on **500 panoramic dental X-ray cases** with expert-annotated AIM-XML ground truth.
 
@@ -96,9 +104,23 @@ Evaluated on **500 panoramic dental X-ray cases** with expert-annotated AIM-XML 
 >
 > "Soft" accuracy counts Proximal ↔ Mesial/Distal as correct; "Strict" requires exact surface name.
 
+### Sample Output
+
+**Per-case validation dashboard** — panoramic overview with TP/FP/FN annotations and per-tooth PCA zone panels:
+
+<p align="center">
+  <img src="week7/hero_shots/5_Overall_Dashboard_Summary/case_5_6teeth_soft100%_strict100%.png" alt="Validation Dashboard — Case 5" width="800">
+</p>
+
+**Per-tooth PCA orientation fix** — eigenvector correction for squarish molars with M-C-D zone voting:
+
+<p align="center">
+  <img src="week7/hero_shots/3_Squarish_Molar_PCA_Fix_Win/case_5_tooth28_MOD_angle-3.4.png" alt="PCA Fix — Tooth 28 MOD" width="800">
+</p>
+
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 ```text
 SP/
@@ -163,7 +185,7 @@ SP/
 
 ---
 
-## 🛠️ Technology Stack
+## Technology Stack
 
 | Category | Technologies |
 | :--- | :--- |
@@ -177,7 +199,7 @@ SP/
 
 ---
 
-## ⚙️ Installation
+## Installation
 
 ### Prerequisites
 
@@ -205,7 +227,7 @@ pip install 'git+https://github.com/facebookresearch/detectron2.git'
 
 ---
 
-## 🚀 Weekly Development Progress
+## Weekly Development Progress
 
 | Week | Phase | Description | Key Output |
 | :--- | :--- | :--- | :--- |
@@ -221,7 +243,7 @@ pip install 'git+https://github.com/facebookresearch/detectron2.git'
 
 ---
 
-## 📖 References
+## References
 
 - **FDI Notation:** ISO 3950 — Two-digit tooth numbering system by the World Dental Federation
 - **SNODENT:** Systemized Nomenclature of Dentistry (ADA)
@@ -230,6 +252,6 @@ pip install 'git+https://github.com/facebookresearch/detectron2.git'
 
 ---
 
-## 📄 License
+## License
 
 This project is developed as part of the ITDS346 PRACTICAL DATA SCIENCE, ITDS491 SENIOR PROJECT I, and ITDS492 SENIOR PROJECT II coursework at the Faculty of ICT, Mahidol University.
