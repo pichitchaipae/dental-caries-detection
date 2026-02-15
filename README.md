@@ -217,6 +217,8 @@ pip install 'git+https://github.com/facebookresearch/detectron2.git'
 | **6** | Surface Classification v2 + Evaluation | Multi-Zone M-C-D Point-Cloud Voting + full evaluation | F1=0.89, Surface Acc=87% (baseline) |
 | **7** | Pipeline Hardening | 4-rule PCA fix, boundary erosion, M/D flip fix, soft-match eval, phantom FP elimination | **F1=0.83, Prec=99.1%, Soft Acc=100%** |
 
+> **Getting started with Week 7?** See [`week7/README.md`](week7/README.md) for the complete prerequisites checklist, verification script, and step-by-step reproduction guide.
+
 ---
 
 ## 📖 References
