@@ -10,26 +10,29 @@ A multi-stage computer vision pipeline for automated **dental caries detection**
 
 | Name | Student ID | GitHub | Email |
 | :--- | :--- | :--- | :--- |
-| **Sukollapat Pisuchpen** (Pond) | 6687052 | [@SukollapatPis](https://github.com/SukollapatPis) | sukollapat.pis@gmail.com |
-| **Pichitchai Paecharoenchai** (Jao) | 6687033 | [@pichitchaipae](https://github.com/pichitchaipae) | jao.pichitchai@gmail.com |
-| **Naris Pholpak** (Phai) | 6687025 | [@1tshadowz](https://github.com/1tshadowz) | phainaris@gmail.com |
+| **Sukollapat Pisuchpen** (Pond) | 6687052 | [@SukollapatPis](https://github.com/SukollapatPis) | <sukollapat.pis@gmail.com> |
+| **Pichitchai Paecharoenchai** (Jao) | 6687033 | [@pichitchaipae](https://github.com/pichitchaipae) | <jao.pichitchai@gmail.com> |
+| **Naris Pholpak** (Phai) | 6687025 | [@1tshadowz](https://github.com/1tshadowz) | <phainaris@gmail.com> |
 
-**Faculty:** Faculty of Information and Communication Technology (ICT), Mahidol University  
-**Advisor:** Dr. Sirawich Vachmanus (sirawich.vac@mahidol.ac.th)
+**Faculty:** Faculty of Information and Communication Technology (ICT), Mahidol University
+**Advisor:** Dr. Sirawich Vachmanus (<sirawich.vac@mahidol.ac.th>)
 
 ---
 
 ## 🎯 Project Objectives
 
 ### 1. Tooth Segmentation & Identification (FDI Notation) ✅ Completed
+
 - Segment and identify all 32 teeth in panoramic X-rays using the FDI (ISO 3950) two-digit notation system.
 - Two-stage approach: YOLO panoramic detection → Detectron2 fine segmentation.
 
 ### 2. Caries Detection ✅ Completed
+
 - Detect dental caries lesions using YOLOv8s trained on 3 classes: **Occlusal**, **Proximal**, and **Lingual**.
 - Map detected caries to specific teeth via pixel-level containment matching.
 
 ### 3. Caries Surface Classification ✅ Completed
+
 - Classify the specific surface affected by caries using PCA orientation normalization and **Multi-Zone Point-Cloud Voting** (Mesial / Central / Distal zones).
 - Generates combined surface labels: **O, MO, DO, MOD, L**, etc.
 
@@ -37,7 +40,7 @@ A multi-stage computer vision pipeline for automated **dental caries detection**
 
 ## 🏗️ Pipeline Architecture
 
-```
+```text
 ┌──────────────────────────────────────────────────────────────────────┐
 │                   INPUT: Panoramic Dental X-ray (OPG)                │
 └──────────────────────────────────────────────────────────────────────┘
@@ -96,7 +99,7 @@ Evaluated on **500 panoramic dental X-ray cases** with expert-annotated AIM-XML 
 
 ## 📂 Project Structure
 
-```
+```text
 SP/
 ├── material/                           # Raw data & pre-trained models (excluded from git)
 │   ├── 500 cases with annotation/      #   500 panoramic X-rays + AIM-XML annotations
@@ -176,6 +179,7 @@ SP/
 ## ⚙️ Installation
 
 ### Prerequisites
+
 - Python 3.10+
 - CUDA-compatible GPU (recommended)
 - Conda (recommended for environment management)
@@ -225,4 +229,4 @@ pip install 'git+https://github.com/facebookresearch/detectron2.git'
 
 ## 📄 License
 
-This project is developed as part of the Special Project (SP) coursework at the Faculty of ICT, Mahidol University.
+This project is developed as part of the ITDS346 PRACTICAL DATA SCIENCE, ITDS491 SENIOR PROJECT I, and ITDS492 SENIOR PROJECT II coursework at the Faculty of ICT, Mahidol University.
