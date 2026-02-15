@@ -109,7 +109,7 @@ Evaluated on **500 panoramic dental X-ray cases** with expert-annotated AIM-XML 
 **Per-case validation dashboard** — panoramic overview with TP/FP/FN annotations and per-tooth PCA zone panels:
 
 <p align="center">
-  <img src="week7/hero_shots/5_Overall_Dashboard_Summary/case_5_6teeth_soft100%_strict100%.png" alt="Validation Dashboard — Case 5" width="800">
+  <img src="week7/hero_shots/5_Overall_Dashboard_Summary/case_5_6teeth_soft100pct_strict100pct.png" alt="Validation Dashboard — Case 5" width="800">
 </p>
 
 **Per-tooth PCA orientation fix** — eigenvector correction for squarish molars with M-C-D zone voting:
