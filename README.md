@@ -115,7 +115,7 @@ Evaluated on **500 panoramic dental X-ray cases** with expert-annotated AIM-XML 
 **Per-tooth PCA orientation fix** — eigenvector correction for squarish molars with M-C-D zone voting:
 
 <p align="center">
-  <img src="week7/hero_shots/3_Squarish_Molar_PCA_Fix_Win/case_5_tooth28_MOD_angle-3.4.png" alt="PCA Fix — Tooth 28 MOD" width="800">
+  <img src="week7/hero_shots/3_Squarish_Molar_PCA_Fix_Win/case_3_tooth48_MOD_angle0.0.png" alt="PCA Fix — Tooth 48 MOD" width="800">
 </p>
 
 ---
