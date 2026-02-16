@@ -475,6 +475,8 @@ def evaluate_single_case(case_num: int, reclassify: bool = True) -> Dict:
 # Batch Evaluation
 # =============================================================================
 
+from sklearn.metrics import classification_report
+
 def evaluate_all_cases(
     case_list: Optional[List[int]] = None,
     start: int = 1,
@@ -482,31 +484,24 @@ def evaluate_all_cases(
     reclassify: bool = True,
     verbose: bool = True,
 ) -> pd.DataFrame:
-    """
-    Run evaluation.  If *case_list* is provided, iterate only those
-    case numbers; otherwise iterate start..end.
-    """
+
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     cases_to_run = case_list if case_list else list(range(start, end + 1))
 
     rows = []
     all_tp = all_fp = all_fn = 0
+
     gt_surfaces = []
     pred_surfaces = []
+
     gt_surfaces_fine = []
     pred_surfaces_fine = []
+
     cases_processed = cases_skipped = 0
 
-    if verbose:
-        print("=" * 70)
-        print("DENTAL CARIES EVALUATION ENGINE – week7")
-        print("  Fixes: PCA orientation | Erosion | Unassigned caries | Soft match")
-        print("=" * 70)
-        print(f"Cases: {cases_to_run[:5]}{'...' if len(cases_to_run) > 5 else ''}  |  Output: {OUTPUT_DIR}")
-        print("=" * 70)
-
     for case_num in cases_to_run:
+
         gt_folder = MATERIAL_DIR / f"case {case_num}"
         if not gt_folder.exists():
             cases_skipped += 1
@@ -514,26 +509,25 @@ def evaluate_all_cases(
 
         try:
             result = evaluate_single_case(case_num, reclassify=reclassify)
-        except Exception as e:
-            if verbose:
-                print(f"[ERROR] Case {case_num}: {e}")
+        except Exception:
             cases_skipped += 1
             continue
 
         cases_processed += 1
+
         tp = len(result["matched"])
         fp_count = len(result["fp"])
         fn_count = len(result["fn"])
+
         all_tp += tp
         all_fp += fp_count
         all_fn += fn_count
 
-        # ── Per-match rows ───────────────────────────────────────────
         for m in result["matched"]:
+
             gt = m["gt"]
             pred = m["pred"]
 
-            # Find matching MZ result
             mz_info = {}
             tid = pred.get("tooth_id", "")
             for mz in result.get("mz_results", []):
@@ -541,26 +535,27 @@ def evaluate_all_cases(
                     mz_info = mz
                     break
 
+            # ---------- Coarse ----------
             gt_surf = normalize_surface(gt.get("surface_name", ""))
             mz_fine = mz_info.get("predicted_surface_fine", "")
-            if mz_fine and mz_fine != "Unknown":
-                pred_surf = normalize_surface(mz_fine)
-            else:
-                pred_surf = normalize_surface(pred.get("caries_surface", ""))
+            pred_surf = normalize_surface(
+                mz_fine if mz_fine else pred.get("caries_surface", "")
+            )
 
             gt_surfaces.append(gt_surf)
             pred_surfaces.append(pred_surf)
 
+            # ---------- Fine ----------
             gt_fine = normalize_surface_fine(gt.get("surface_name", ""))
-            if mz_fine and mz_fine != "Unknown":
-                pred_fine = normalize_surface_fine(mz_fine)
-            else:
-                pred_fine = normalize_surface_fine(pred.get("caries_surface", ""))
+            pred_fine = normalize_surface_fine(
+                mz_fine if mz_fine else pred.get("caries_surface", "")
+            )
+
             gt_surfaces_fine.append(gt_fine)
             pred_surfaces_fine.append(pred_fine)
 
-            # ── Task 4: Soft surface matching ────────────────────────
             strict_match = (gt_surf == pred_surf)
+
             soft_match_result = soft_surface_match(
                 gt_surface_raw=gt.get("surface_name", ""),
                 pred_surface_fine=mz_fine if mz_fine else pred.get("caries_surface", ""),
@@ -570,180 +565,142 @@ def evaluate_all_cases(
             rows.append({
                 "case": case_num,
                 "tooth_id": gt.get("tooth_fdi", ""),
-                "gt_surface": gt.get("surface_name", ""),
                 "gt_surface_norm": gt_surf,
-                "gt_severity": gt.get("severity", ""),
-                "gt_roi_points": len(gt.get("roi_coordinates", [])),
-                "gt_centroid_x": gt.get("roi_centroid", (0, 0))[0],
-                "gt_centroid_y": gt.get("roi_centroid", (0, 0))[1],
-                "pred_surface_w5": pred.get("caries_surface", ""),
-                "pred_surface": mz_fine if mz_fine else pred.get("caries_surface", ""),
                 "pred_surface_norm": pred_surf,
-                "pred_position_detail": mz_info.get("predicted_detail",
-                                                     pred.get("caries_position_detail", "")),
-                "mz_zone_label": mz_info.get("zone_label", ""),
-                "mz_primary_surface": mz_info.get("primary_surface", ""),
-                "mz_predicted_surface": mz_fine,
-                "mz_predicted_detail": mz_info.get("predicted_detail", ""),
-                "mz_frac_M": mz_info.get("zone_fractions", {}).get("M", 0),
-                "mz_frac_C": mz_info.get("zone_fractions", {}).get("C", 0),
-                "mz_frac_D": mz_info.get("zone_fractions", {}).get("D", 0),
-                "all_frac_M": mz_info.get("all_zone_fractions", {}).get("M", 0),
-                "all_frac_C": mz_info.get("all_zone_fractions", {}).get("C", 0),
-                "all_frac_D": mz_info.get("all_zone_fractions", {}).get("D", 0),
-                "rotation_angle_deg": mz_info.get("rotation_angle_deg", 0),
-                "pca_clamped": mz_info.get("pca_clamped", False),
+                "gt_surface_fine": gt_fine,
+                "pred_surface_fine": pred_fine,
                 "match_type": m["match_type"],
-                "distance_px": m["distance_px"],
-                # ── Task 4: both strict and soft match columns ───────
                 "surface_match_strict": strict_match,
-                "surface_match": soft_match_result,  # "True" / "Partial" / "True_with_warning" / "False"
+                "surface_match": soft_match_result,
             })
 
-        # FP rows
         for fpi in result["fp"]:
-            pred = fpi["pred"]
             rows.append({
                 "case": case_num,
-                "tooth_id": pred.get("tooth_id", ""),
-                "gt_surface": "", "gt_surface_norm": "",
-                "gt_severity": "", "gt_roi_points": 0,
-                "gt_centroid_x": 0, "gt_centroid_y": 0,
-                "pred_surface": pred.get("caries_surface", ""),
-                "pred_surface_norm": normalize_surface(pred.get("caries_surface", "")),
-                "pred_position_detail": pred.get("caries_position_detail", ""),
-                "mz_zone_label": "", "mz_primary_surface": "",
-                "mz_predicted_surface": "", "mz_predicted_detail": "",
-                "mz_frac_M": 0, "mz_frac_C": 0, "mz_frac_D": 0,
-                "all_frac_M": 0, "all_frac_C": 0, "all_frac_D": 0,
-                "rotation_angle_deg": 0,
-                "pca_clamped": False,
-                "match_type": "FP", "distance_px": -1,
+                "match_type": "FP",
                 "surface_match_strict": False,
                 "surface_match": "False",
             })
 
-        # FN rows
         for fni in result["fn"]:
-            gt = fni["gt"]
             rows.append({
                 "case": case_num,
-                "tooth_id": gt.get("tooth_fdi", ""),
-                "gt_surface": gt.get("surface_name", ""),
-                "gt_surface_norm": normalize_surface(gt.get("surface_name", "")),
-                "gt_severity": gt.get("severity", ""),
-                "gt_roi_points": len(gt.get("roi_coordinates", [])),
-                "gt_centroid_x": gt.get("roi_centroid", (0, 0))[0],
-                "gt_centroid_y": gt.get("roi_centroid", (0, 0))[1],
-                "pred_surface": "", "pred_surface_norm": "",
-                "pred_position_detail": "",
-                "mz_zone_label": "", "mz_primary_surface": "",
-                "mz_predicted_surface": "", "mz_predicted_detail": "",
-                "mz_frac_M": 0, "mz_frac_C": 0, "mz_frac_D": 0,
-                "all_frac_M": 0, "all_frac_C": 0, "all_frac_D": 0,
-                "rotation_angle_deg": 0,
-                "pca_clamped": False,
-                "match_type": "FN", "distance_px": -1,
+                "match_type": "FN",
                 "surface_match_strict": False,
                 "surface_match": "False",
             })
 
-        if verbose and cases_processed % 50 == 0:
-            print(f"  ... processed {cases_processed} cases (TP={all_tp}, FP={all_fp}, FN={all_fn})")
+    # ================================
+    # Detection metrics
+    # ================================
 
-    # ── Aggregate metrics ────────────────────────────────────────────
-    precision = all_tp / (all_tp + all_fp) if (all_tp + all_fp) > 0 else 0
-    recall    = all_tp / (all_tp + all_fn) if (all_tp + all_fn) > 0 else 0
-    f1        = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
+    precision = all_tp / (all_tp + all_fp) if (all_tp + all_fp) else 0
+    recall    = all_tp / (all_tp + all_fn) if (all_tp + all_fn) else 0
+    f1        = 2 * precision * recall / (precision + recall) if (precision + recall) else 0
 
     df = pd.DataFrame(rows)
     matched_df = df[df["match_type"].isin(["tooth_id", "centroid_proximity"])]
 
-    # Strict surface accuracy (backward-compatible)
-    strict_acc = matched_df["surface_match_strict"].mean() if len(matched_df) > 0 else 0
+    # ================================
+    # Surface accuracy
+    # ================================
 
-    # Soft surface accuracy (Task 4): count True + Partial + True_with_warning
-    if len(matched_df) > 0:
-        soft_hits = matched_df["surface_match"].isin(["True", "Partial", "True_with_warning"]).sum()
+    strict_acc = matched_df["surface_match_strict"].mean() if len(matched_df) else 0
+
+    if len(matched_df):
+        soft_hits = matched_df["surface_match"].isin(
+            ["True", "Partial", "True_with_warning"]
+        ).sum()
         soft_acc = soft_hits / len(matched_df)
     else:
         soft_acc = 0
 
+    # ================================
+    # Per-class metrics (Fine)
+    # ================================
+
+    fine_report = {}
+    coarse_report = {}
+
+    if gt_surfaces_fine:
+        fine_report = classification_report(
+            gt_surfaces_fine,
+            pred_surfaces_fine,
+            output_dict=True,
+            zero_division=0
+        )
+
+        with open(OUTPUT_DIR / "classification_report_fine.json", "w", encoding="utf-8") as f:
+            json.dump(fine_report, f, indent=2, ensure_ascii=False)
+
+    if gt_surfaces:
+        coarse_report = classification_report(
+            gt_surfaces,
+            pred_surfaces,
+            output_dict=True,
+            zero_division=0
+        )
+
+        with open(OUTPUT_DIR / "classification_report_coarse.json", "w", encoding="utf-8") as f:
+            json.dump(coarse_report, f, indent=2, ensure_ascii=False)
+
+    # ================================
+    # Soft-aware per-class accuracy
+    # ================================
+
+    soft_per_class = {}
+
+    if len(matched_df):
+        for cls in matched_df["gt_surface_fine"].unique():
+
+            cls_df = matched_df[matched_df["gt_surface_fine"] == cls]
+            if len(cls_df) == 0:
+                continue
+
+            hits = cls_df["surface_match"].isin(
+                ["True", "Partial", "True_with_warning"]
+            ).sum()
+
+            soft_per_class[cls] = round(hits / len(cls_df), 4)
+
+    # ================================
+    # Summary
+    # ================================
+
     summary = {
         "timestamp": datetime.now().isoformat(),
-        "pipeline_version": "week7",
-        "fixes_applied": [
-            "Task1_PCA_eigenvector_fix",
-            "Task2_boundary_erosion",
-            "Task3_unassigned_caries",
-            "Task4_soft_surface_match",
-        ],
+        "pipeline_version": "week7_research_upgrade",
         "cases_processed": cases_processed,
         "cases_skipped": cases_skipped,
-        "total_gt_annotations": all_tp + all_fn,
-        "total_predictions": all_tp + all_fp,
         "TP": all_tp,
         "FP": all_fp,
         "FN": all_fn,
         "precision": round(precision, 4),
         "recall": round(recall, 4),
         "f1_score": round(f1, 4),
-        "surface_classification_accuracy_strict": round(strict_acc, 4),
-        "surface_classification_accuracy_soft": round(float(soft_acc), 4),
-        "soft_match_threshold": SOFT_MATCH_FRACTION_THRESHOLD,
-        "distance_threshold_px": DISTANCE_THRESHOLD_PX,
+        "surface_accuracy_strict": round(strict_acc, 4),
+        "surface_accuracy_soft": round(soft_acc, 4),
+        "soft_per_class_accuracy": soft_per_class,
+        "classification_report_fine": fine_report,
+        "classification_report_coarse": coarse_report,
     }
 
-    # ── Save outputs ─────────────────────────────────────────────────
-    csv_path = OUTPUT_DIR / "evaluation_results.csv"
-    df.to_csv(csv_path, index=False, encoding="utf-8-sig")
-
-    summary_path = OUTPUT_DIR / "evaluation_summary.json"
-    with open(summary_path, "w", encoding="utf-8") as f:
+    with open(OUTPUT_DIR / "evaluation_summary.json", "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2, ensure_ascii=False)
 
-    # ── Confusion matrices ───────────────────────────────────────────
-    if gt_surfaces and pred_surfaces:
-        _plot_confusion_matrix(
-            gt_surfaces, pred_surfaces,
-            labels=["Occlusal", "Proximal", "Other"],
-            title="Surface Classification – Confusion Matrix (Coarse) – week7",
-            save_path=OUTPUT_DIR / "confusion_matrix_coarse.png",
-        )
-    if gt_surfaces_fine and pred_surfaces_fine:
-        fine_labels = sorted(set(gt_surfaces_fine) | set(pred_surfaces_fine))
-        _plot_confusion_matrix(
-            gt_surfaces_fine, pred_surfaces_fine,
-            labels=fine_labels,
-            title="Surface Classification – Confusion Matrix (Fine) – week7",
-            save_path=OUTPUT_DIR / "confusion_matrix_fine.png",
-        )
-
-    # ── Print summary ────────────────────────────────────────────────
     if verbose:
-        print("\n" + "=" * 70)
-        print("EVALUATION SUMMARY – week7")
-        print("=" * 70)
-        print(f"  Cases processed    : {cases_processed}")
-        print(f"  Cases skipped      : {cases_skipped}")
-        print(f"  Ground Truth (GT)  : {all_tp + all_fn} annotations")
-        print(f"  Predictions (Pred) : {all_tp + all_fp}")
-        print()
-        print(f"  True Positives  (TP) : {all_tp}")
-        print(f"  False Positives (FP) : {all_fp}")
-        print(f"  False Negatives (FN) : {all_fn}")
-        print()
-        print(f"  Precision : {precision:.4f}")
-        print(f"  Recall    : {recall:.4f}")
-        print(f"  F1-Score  : {f1:.4f}")
-        print()
-        print(f"  Surface accuracy (strict) : {strict_acc:.4f}")
-        print(f"  Surface accuracy (soft)   : {float(soft_acc):.4f}")
-        print()
-        print(f"  Outputs → {OUTPUT_DIR}")
-        print("=" * 70)
+        print("\n=== EVALUATION SUMMARY (Research Upgrade) ===")
+        print(f"Precision: {precision:.4f}")
+        print(f"Recall:    {recall:.4f}")
+        print(f"F1:        {f1:.4f}")
+        print(f"Surface strict accuracy: {strict_acc:.4f}")
+        print(f"Surface soft accuracy:   {soft_acc:.4f}")
+        print("\nSoft per-class accuracy:")
+        for k, v in soft_per_class.items():
+            print(f"  {k}: {v}")
 
     return df
+
 
 
 # =============================================================================

@@ -43,6 +43,7 @@ import numpy as np
 from pathlib import Path
 from typing import List, Dict, Tuple, Optional
 
+
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -76,7 +77,7 @@ from evaluation_engine import (
 # Configuration  (week7 paths)
 # =====================================================================
 
-BASE_DIR = Path(r"C:\Users\jaopi\Desktop\SP")
+BASE_DIR = Path(r"E:\MU\3rd-year\Senior\dental-caries-detection")
 
 MATERIAL_DIR = BASE_DIR / "material" / "500 cases with annotation"
 WEEK2_DIR    = BASE_DIR / "week2"  / "500-segmentation+recognition"
@@ -100,6 +101,93 @@ FN_COLOR       = "#f39c12"
 DIVIDER_COLOR  = "#FF6347"   # tomato
 
 ROI_PAD_PX = 60   # padding around tooth ROI crop
+
+
+# =====================================================================
+# Research-grade Classification Metrics (Per Case)
+# =====================================================================
+
+CLS_LABELS = ["occlusal", "mesial", "distal"]
+
+def extract_major_surface_from_mz(mz_result: Dict) -> str:
+    """
+    Convert MZ detail (M/MO/MOD/DO/etc) → main class
+    """
+    if not mz_result:
+        return None
+
+    detail = mz_result.get("predicted_detail", "")
+    detail = detail.upper()
+
+    if "O" in detail:
+        return "occlusal"
+    if "M" in detail and "D" not in detail:
+        return "mesial"
+    if "D" in detail and "M" not in detail:
+        return "distal"
+    if "M" in detail and "D" in detail:
+        # treat MOD as occlusal-dominant
+        return "occlusal"
+
+    return None
+
+
+def compute_classification_metrics(
+    matched: List[Dict],
+    mz_cache: Dict[str, Dict],
+):
+    """
+    Compute per-class TP/FP/FN + strict + soft accuracy
+    """
+
+    per_class = {
+        c: {"TP": 0, "FP": 0, "FN": 0}
+        for c in CLS_LABELS
+    }
+
+    confusion = {
+        gt: {pred: 0 for pred in CLS_LABELS}
+        for gt in CLS_LABELS
+    }
+
+    strict_correct = 0
+    soft_correct = 0
+    total = 0
+
+    for m in matched:
+        gt_surface_raw = m["gt"].get("surface_name", "")
+        gt_norm = normalize_surface(gt_surface_raw)
+
+        tid = m["pred"].get("tooth_id", "")
+        mz = mz_cache.get(tid)
+        pred_norm = extract_major_surface_from_mz(mz)
+
+        if not gt_norm or not pred_norm:
+            continue
+
+        total += 1
+        confusion[gt_norm][pred_norm] += 1
+
+        if gt_norm == pred_norm:
+            per_class[gt_norm]["TP"] += 1
+            strict_correct += 1
+            soft_correct += 1
+        else:
+            per_class[gt_norm]["FN"] += 1
+            per_class[pred_norm]["FP"] += 1
+
+            sm = soft_surface_match(
+                gt_surface_raw,
+                mz.get("predicted_surface_fine", "") if mz else "",
+                mz,
+            )
+            if sm in ("SOFT_OK", "SOFT_MATCH"):
+                soft_correct += 1
+
+    strict_acc = strict_correct / total if total else 0
+    soft_acc = soft_correct / total if total else 0
+
+    return per_class, confusion, strict_acc, soft_acc
 
 
 # =====================================================================
@@ -730,6 +818,13 @@ def generate_dashboard(case_num: int, dpi: int = 150, verbose: bool = True):
             )
             soft_match_cache[tid] = sm
 
+    # ==============================================================
+    # Research-grade Classification Metrics
+    # ==============================================================
+
+    per_class, confusion, strict_acc, soft_acc = \
+        compute_classification_metrics(matched, mz_cache)
+
     # ── Determine which teeth to show in bottom row ──────────────────
     teeth_to_viz = []
 
@@ -851,6 +946,50 @@ def generate_dashboard(case_num: int, dpi: int = 150, verbose: bool = True):
         facecolor="#1a1a2e",
         edgecolor="gray",
         labelcolor="white",
+    )
+
+    # --------------------------------------------------------------
+    # Research Summary Panel (Top-left overlay)
+    # --------------------------------------------------------------
+
+    summary_text = "Classification Metrics (Per Case)\n\n"
+
+    for cls in CLS_LABELS:
+        stats = per_class[cls]
+        summary_text += (
+            f"{cls.upper()}  "
+            f"TP:{stats['TP']}  "
+            f"FP:{stats['FP']}  "
+            f"FN:{stats['FN']}\n"
+        )
+
+    summary_text += "\n"
+    summary_text += f"Strict Acc: {strict_acc*100:.1f}%\n"
+    summary_text += f"Soft Acc:   {soft_acc*100:.1f}%\n\n"
+
+    summary_text += "Confusion Matrix\n"
+    summary_text += "GT\\Pred  OCC  MES  DIS\n"
+
+    for gt in CLS_LABELS:
+        row = gt[:3].upper().ljust(7)
+        for pred in CLS_LABELS:
+            row += f"{confusion[gt][pred]:>5}"
+        summary_text += row + "\n"
+
+    ax_global.text(
+        0.02, 0.98,
+        summary_text,
+        transform=ax_global.transAxes,
+        fontsize=8,
+        verticalalignment="top",
+        horizontalalignment="left",
+        bbox=dict(
+            boxstyle="round",
+            facecolor="#1a1a2e",
+            alpha=0.85,
+            edgecolor="gray",
+        ),
+        color="white",
     )
 
     ax_global.set_xticks([])
