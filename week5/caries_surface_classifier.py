@@ -91,65 +91,271 @@ def compute_centroid(points: np.ndarray) -> Tuple[float, float]:
     return (centroid_x, centroid_y)
 
 
-def perform_pca(points: np.ndarray) -> Tuple[np.ndarray, np.ndarray, float]:
-    """
-    Perform Principal Component Analysis on 2D points.
+# def perform_pca(points: np.ndarray) -> Tuple[np.ndarray, np.ndarray, float]:
+#     """
+#     Perform Principal Component Analysis on 2D points.
     
-    PCA finds the principal axes of variation in the point cloud.
-    The first eigenvector (major axis) indicates the primary direction of elongation.
+#     PCA finds the principal axes of variation in the point cloud.
+#     The first eigenvector (major axis) indicates the primary direction of elongation.
     
-    Math Background:
-    - Compute covariance matrix of centered points
-    - Find eigenvectors (directions) and eigenvalues (variance along each direction)
-    - Major axis = eigenvector with largest eigenvalue
+#     Math Background:
+#     - Compute covariance matrix of centered points
+#     - Find eigenvectors (directions) and eigenvalues (variance along each direction)
+#     - Major axis = eigenvector with largest eigenvalue
     
-    Args:
-        points: Nx2 array of [x, y] coordinates
+#     Args:
+#         points: Nx2 array of [x, y] coordinates
         
-    Returns:
-        Tuple of:
-        - mean: Center of the point distribution (2,)
-        - eigenvectors: 2x2 matrix where rows are principal axes
-        - angle: Rotation angle (radians) to make major axis vertical
+#     Returns:
+#         Tuple of:
+#         - mean: Center of the point distribution (2,)
+#         - eigenvectors: 2x2 matrix where rows are principal axes
+#         - angle: Rotation angle (radians) to make major axis vertical
+#     """
+#     # Convert to float64 for numerical stability
+#     points = np.array(points, dtype=np.float64)
+    
+#     # Compute mean (centroid)
+#     mean = np.mean(points, axis=0)
+    
+#     # Center the data (subtract mean)
+#     centered = points - mean
+    
+#     # Use OpenCV's PCACompute for robust computation
+#     # This handles edge cases better than manual covariance computation
+#     mean_out, eigenvectors = cv2.PCACompute(centered, mean=None)
+    
+#     # eigenvectors[0] is the major axis (largest variance direction)
+#     # eigenvectors[1] is the minor axis (perpendicular)
+#     major_axis = eigenvectors[0]
+    
+#     # Calculate angle to rotate major axis to vertical (Y-axis)
+#     # We want the major axis to align with [0, 1] (vertical)
+#     # arctan2(y, x) gives angle from positive X-axis
+#     # For vertical alignment, we need to rotate so major_axis becomes [0, ±1]
+    
+#     # Angle of major axis from positive X-axis
+#     angle_from_x = math.atan2(major_axis[1], major_axis[0])
+    
+#     # We want to rotate to vertical (90° or -90° from X-axis)
+#     # Choose the rotation that keeps the tooth mostly upright
+#     # Target angle is π/2 (90°) for vertical
+#     target_angle = math.pi / 2
+#     rotation_angle = target_angle - angle_from_x
+    
+#     # Normalize angle to [-π, π]
+#     while rotation_angle > math.pi:
+#         rotation_angle -= 2 * math.pi
+#     while rotation_angle < -math.pi:
+#         rotation_angle += 2 * math.pi
+    
+#     return mean, eigenvectors, rotation_angle
+
+# =============================================================================
+# changed PCA logic here for evaluation
+def perform_pca(points: np.ndarray) -> Tuple[np.ndarray, np.ndarray, float]:
+    method = 1
+    if method == 1:
+        return perform_pca_1(points)
+    elif method == 2:
+        return perform_pca_2(points)
+    elif method == 3:
+        return perform_pca_3(points)
+    elif method == 4:
+        return perform_pca_4(points)
+    elif method == 5:
+        return perform_pca_5(points)
+    
+# วิธี 1 (19 Feb 2026)
+def perform_pca_1(points: np.ndarray) -> Tuple[np.ndarray, np.ndarray, float]:
     """
-    # Convert to float64 for numerical stability
-    points = np.array(points, dtype=np.float64)
-    
-    # Compute mean (centroid)
+    Apply PCA to align the tooth vertically using heuristics for square shapes.
+    """
+    # 1. หาจุดกึ่งกลางและ Centering
     mean = np.mean(points, axis=0)
+    centered_data = points - mean
     
-    # Center the data (subtract mean)
-    centered = points - mean
+    # 2. คำนวณ Covariance และ Eigenvectors
+    cov_matrix = np.cov(centered_data, rowvar=False)
+    eigenvalues, eigenvectors = np.linalg.eigh(cov_matrix)
     
-    # Use OpenCV's PCACompute for robust computation
-    # This handles edge cases better than manual covariance computation
-    mean_out, eigenvectors = cv2.PCACompute(centered, mean=None)
+    # --- [จุดที่แก้] Logic เลือกแกนหลักใหม่ ---
     
-    # eigenvectors[0] is the major axis (largest variance direction)
-    # eigenvectors[1] is the minor axis (perpendicular)
-    major_axis = eigenvectors[0]
+    # ดึงเวกเตอร์ทั้ง 2 ตัวออกมา
+    vec_0 = eigenvectors[:, 0]  # เวกเตอร์ตัวที่ 1
+    vec_1 = eigenvectors[:, 1]  # เวกเตอร์ตัวที่ 2
     
-    # Calculate angle to rotate major axis to vertical (Y-axis)
-    # We want the major axis to align with [0, 1] (vertical)
-    # arctan2(y, x) gives angle from positive X-axis
-    # For vertical alignment, we need to rotate so major_axis becomes [0, ±1]
+    # ตรวจสอบว่าฟันเป็น "ทรงจตุรัส" หรือไม่?
+    # โดยดูอัตราส่วน Eigenvalues (ถ้าใกล้ 1 แสดงว่ากลม/จตุรัส)
+    # กัน Error กรณีค่าเป็น 0
+    ratio = eigenvalues[1] / (eigenvalues[0] + 1e-6) 
     
-    # Angle of major axis from positive X-axis
-    angle_from_x = math.atan2(major_axis[1], major_axis[0])
+    is_square_like = ratio < 2.0  # ถ้าอัตราส่วนน้อยกว่า 2 ถือว่าค่อนข้างป้อม/จตุรัส (ปรับค่านี้ได้)
+
+    if is_square_like:
+        # กรณีฟันป้อม/จตุรัส: ให้เลือกเวกเตอร์ที่มีค่า y (แนวตั้ง) มากกว่า เป็นแกนหลักเสมอ
+        # vec[1] คือค่า y component ของเวกเตอร์
+        if abs(vec_0[1]) > abs(vec_1[1]):
+            major_axis = vec_0
+            minor_axis = vec_1
+        else:
+            major_axis = vec_1
+            minor_axis = vec_0
+    else:
+        # กรณีฟันยาวปกติ: เลือกตาม Eigenvalue มากที่สุดเหมือนเดิม
+        sort_indices = np.argsort(eigenvalues)[::-1]
+        major_axis = eigenvectors[:, sort_indices[0]]
+        minor_axis = eigenvectors[:, sort_indices[1]]
+
+    # จัดเรียง Eigenvectors ใหม่ให้ถูกต้อง
+    eigenvectors_sorted = np.column_stack((minor_axis, major_axis)) # เอาแกนรองไว้ก่อน, แกนหลักไว้หลัง (ตาม convention เดิม)
+
+    # 3. คำนวณมุม (ใช้ major_axis ที่เลือกมาอย่างถูกต้องแล้ว)
+    rotation_angle = np.arctan2(major_axis[1], major_axis[0])
     
-    # We want to rotate to vertical (90° or -90° from X-axis)
-    # Choose the rotation that keeps the tooth mostly upright
-    # Target angle is π/2 (90°) for vertical
-    target_angle = math.pi / 2
-    rotation_angle = target_angle - angle_from_x
+    return mean, eigenvectors_sorted, rotation_angle
+
+
+# ================================================================================
+def perform_pca_2(points: np.ndarray) -> Tuple[np.ndarray, np.ndarray, float]:
+    """
+    Apply PCA to align the tooth vertically using heuristics for square shapes.
+    """
+    # 1. หาจุดกึ่งกลางและ Centering
+    mean = np.mean(points, axis=0)
+    centered_data = points - mean
     
-    # Normalize angle to [-π, π]
-    while rotation_angle > math.pi:
-        rotation_angle -= 2 * math.pi
-    while rotation_angle < -math.pi:
-        rotation_angle += 2 * math.pi
+    # 2. คำนวณ Covariance และ Eigenvectors
+    cov_matrix = np.cov(centered_data, rowvar=False)
+    eigenvalues, eigenvectors = np.linalg.eigh(cov_matrix)
     
-    return mean, eigenvectors, rotation_angle
+    # --- [จุดที่แก้] Logic เลือกแกนหลักใหม่ ---
+    
+    # ดึงเวกเตอร์ทั้ง 2 ตัวออกมา
+    vec_0 = eigenvectors[:, 0]
+    vec_1 = eigenvectors[:, 1]
+    
+    # วิธีที่ 1: Maximum Projected Span
+    # ฉายพิกัดจุดทั้งหมดลงบนเวกเตอร์ทั้ง 2 แนว
+    proj_0 = np.dot(centered_data, vec_0)
+    proj_1 = np.dot(centered_data, vec_1)
+    
+    # หาระยะความยาวจริง (ขอบถึงขอบ) ของแต่ละแกน
+    span_0 = np.max(proj_0) - np.min(proj_0)
+    span_1 = np.max(proj_1) - np.min(proj_1)
+    
+    if span_0 > span_1:
+        major_axis, minor_axis = vec_0, vec_1
+    else:
+        major_axis, minor_axis = vec_1, vec_0
+
+    # จัดเรียง Eigenvectors ใหม่ให้ถูกต้อง
+    eigenvectors_sorted = np.column_stack((minor_axis, major_axis)) # เอาแกนรองไว้ก่อน, แกนหลักไว้หลัง (ตาม convention เดิม)
+
+    # 3. คำนวณมุม (ใช้ major_axis ที่เลือกมาอย่างถูกต้องแล้ว)
+    rotation_angle = np.arctan2(major_axis[1], major_axis[0])
+    
+    return mean, eigenvectors_sorted, rotation_angle
+    
+    
+# ================================================================================
+def perform_pca_3(points: np.ndarray) -> Tuple[np.ndarray, np.ndarray, float]:
+    """
+    Apply PCA to align the tooth vertically using heuristics for square shapes.
+    """
+    # 1. หาจุดกึ่งกลางและ Centering
+    mean = np.mean(points, axis=0)
+    centered_data = points - mean
+    
+    # 2. คำนวณ Covariance และ Eigenvectors
+    cov_matrix = np.cov(centered_data, rowvar=False)
+    eigenvalues, eigenvectors = np.linalg.eigh(cov_matrix)
+    
+    # --- [จุดที่แก้] Logic เลือกแกนหลักใหม่ ---
+    
+    # ดึงเวกเตอร์ทั้ง 2 ตัวออกมา
+    vec_0 = eigenvectors[:, 0]
+    vec_1 = eigenvectors[:, 1]
+    
+    # วิธีที่ 2: Split-Centroid
+    # แบ่งกลุ่มจุดที่อยู่เหนือจุด Mean Y และต่ำกว่าจุด Mean Y
+    upper_half = points[points[:, 1] < mean[1]]
+    lower_half = points[points[:, 1] >= mean[1]]
+    
+    # ถ้าจุดน้อยเกินไป (ป้องกัน Error) ให้กลับไปใช้ Eigenvalue ปกติ
+    if len(upper_half) < 2 or len(lower_half) < 2:
+        major_axis = vec_0 if eigenvalues[0] > eigenvalues[1] else vec_1
+        minor_axis = vec_1 if major_axis is vec_0 else vec_0
+    else:
+        upper_centroid = np.mean(upper_half, axis=0)
+        lower_centroid = np.mean(lower_half, axis=0)
+        
+        # สร้างเวกเตอร์ชี้จากบนลงล่าง
+        anat_vector = lower_centroid - upper_centroid
+        # ทำให้เป็น Unit Vector
+        anat_vector = anat_vector / np.linalg.norm(anat_vector)
+        
+        # เปรียบเทียบว่า Eigenvector ตัวไหน ทิศทางเหมือน anat_vector มากกว่ากัน
+        dot_0 = abs(np.dot(vec_0, anat_vector))
+        dot_1 = abs(np.dot(vec_1, anat_vector))
+        
+        if dot_0 > dot_1:
+            major_axis, minor_axis = vec_0, vec_1
+        else:
+            major_axis, minor_axis = vec_1, vec_0
+
+    # จัดเรียง Eigenvectors ใหม่ให้ถูกต้อง
+    eigenvectors_sorted = np.column_stack((minor_axis, major_axis)) # เอาแกนรองไว้ก่อน, แกนหลักไว้หลัง (ตาม convention เดิม)
+
+    # 3. คำนวณมุม (ใช้ major_axis ที่เลือกมาอย่างถูกต้องแล้ว)
+    rotation_angle = np.arctan2(major_axis[1], major_axis[0])
+    
+    return mean, eigenvectors_sorted, rotation_angle
+  
+  
+ # ================================================================================
+def perform_pca_4(points: np.ndarray) -> Tuple[np.ndarray, np.ndarray, float]:
+    
+  
+    
+
+# ================================================================================
+def perform_pca_5(points: np.ndarray) -> Tuple[np.ndarray, np.ndarray, float]:
+    """
+    Apply PCA to align the tooth vertically using heuristics for square shapes.
+    """
+    # 1. หาจุดกึ่งกลางและ Centering
+    mean = np.mean(points, axis=0)
+    centered_data = points - mean
+    
+    # 2. คำนวณ Covariance และ Eigenvectors
+    cov_matrix = np.cov(centered_data, rowvar=False)
+    eigenvalues, eigenvectors = np.linalg.eigh(cov_matrix)
+    
+    # --- [จุดที่แก้] Logic เลือกแกนหลักใหม่ ---
+    
+    # ดึงเวกเตอร์ทั้ง 2 ตัวออกมา
+vec_0 = eigenvectors[:, 0]
+    vec_1 = eigenvectors[:, 1]
+    
+    # วิธีที่ 4: Absolute Vertical Prior
+    # เลือกเวกเตอร์ที่ตั้งฉากกับพื้นโลกมากกว่า (ค่า y มากกว่า) เป็นแกนหลักเสมอ
+    if abs(vec_0[1]) > abs(vec_1[1]):
+        major_axis, minor_axis = vec_0, vec_1
+    else:
+        major_axis, minor_axis = vec_1, vec_0
+
+    # จัดเรียง Eigenvectors ใหม่ให้ถูกต้อง
+    eigenvectors_sorted = np.column_stack((minor_axis, major_axis)) # เอาแกนรองไว้ก่อน, แกนหลักไว้หลัง (ตาม convention เดิม)
+
+    # 3. คำนวณมุม (ใช้ major_axis ที่เลือกมาอย่างถูกต้องแล้ว)
+    rotation_angle = np.arctan2(major_axis[1], major_axis[0])
+    
+    return mean, eigenvectors_sorted, rotation_angle
+
+
+
+
 
 
 def create_rotation_matrix(angle: float, center: Tuple[float, float]) -> np.ndarray:
