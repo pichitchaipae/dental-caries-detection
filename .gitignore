@@ -60,8 +60,6 @@ dataset_*/
 *.stl
 *.h5
 *.hdf5
-*.zip
-*.tar.gz
 
 # =========================
 # YOLO / Model Weights
@@ -86,9 +84,45 @@ inference_*/
 final_*/
 pretrained_test/
 test_new_model/
-500-segmentation+recognition/
-500-roi/
 presentation_hero_shots/
+hero_shots/
+
+# =========================
+# Raw Data (large binary / image files)
+# =========================
+raw_data/500-roi/
+raw_data/500 cases with annotation(xml)/
+raw_data/Tooth Segmentation + Recognition model/
+
+# =========================
+# Week2 large outputs
+# =========================
+week2-Tooth Detection & Segmentation/500-segmentation+recognition/
+week2-Tooth Detection & Segmentation/runs/
+
+# =========================
+# Week5 outputs
+# =========================
+week5-Surface Classification v1/surface_classification_output/
+week5-Surface Classification v1/test_output/
+
+# =========================
+# Week7 outputs
+# =========================
+week7-Surface Classification v3/dental_analysis_output/
+week7-Surface Classification v3/evaluation_output/
+week7-Surface Classification v3/hero_shots/
+
+# =========================
+# Week8 outputs
+# =========================
+week8-Surface Classification v4/dental_analysis_output/
+week8-Surface Classification v4/evaluation_output/
+
+# =========================
+# Non-active / archived weeks
+# =========================
+_non-using/
 
 # =========================
 # Archives & Binaries
