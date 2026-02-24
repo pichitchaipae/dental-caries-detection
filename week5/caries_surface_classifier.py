@@ -14,8 +14,9 @@ Algorithm:
 
 Surface Classes:
 - Class 0 (Occlusal): Top/bottom surface (chewing surface)
-- Class 1 (Proximal): Left or right sides (contact surfaces between teeth)
-- Class 2 (Lingual/Other): Other positions
+- Class 1 (Mesial): Mesial (proximal, toward midline)
+- Class 2 (Distal): Distal (proximal, away from midline)
+(ไม่มี Lingual/Other)
 
 FDI Notation (ISO 3950):
 - Upper Jaw (11-28): Quadrants 1 and 2, roots at top (low Y), occlusal at bottom (high Y)
@@ -90,82 +91,82 @@ def compute_centroid(points: np.ndarray) -> Tuple[float, float]:
     
     return (centroid_x, centroid_y)
 
-
-# def perform_pca(points: np.ndarray) -> Tuple[np.ndarray, np.ndarray, float]:
-#     """
-#     Perform Principal Component Analysis on 2D points.
+# do not change line 93-350. It's the main logic for evaluation.
+def perform_pca_0(points: np.ndarray) -> Tuple[np.ndarray, np.ndarray, float]:
+    """
+    Perform Principal Component Analysis on 2D points.
     
-#     PCA finds the principal axes of variation in the point cloud.
-#     The first eigenvector (major axis) indicates the primary direction of elongation.
+    PCA finds the principal axes of variation in the point cloud.
+    The first eigenvector (major axis) indicates the primary direction of elongation.
     
-#     Math Background:
-#     - Compute covariance matrix of centered points
-#     - Find eigenvectors (directions) and eigenvalues (variance along each direction)
-#     - Major axis = eigenvector with largest eigenvalue
+    Math Background:
+    - Compute covariance matrix of centered points
+    - Find eigenvectors (directions) and eigenvalues (variance along each direction)
+    - Major axis = eigenvector with largest eigenvalue
     
-#     Args:
-#         points: Nx2 array of [x, y] coordinates
+    Args:
+        points: Nx2 array of [x, y] coordinates
         
-#     Returns:
-#         Tuple of:
-#         - mean: Center of the point distribution (2,)
-#         - eigenvectors: 2x2 matrix where rows are principal axes
-#         - angle: Rotation angle (radians) to make major axis vertical
-#     """
-#     # Convert to float64 for numerical stability
-#     points = np.array(points, dtype=np.float64)
+    Returns:
+        Tuple of:
+        - mean: Center of the point distribution (2,)
+        - eigenvectors: 2x2 matrix where rows are principal axes
+        - angle: Rotation angle (radians) to make major axis vertical
+    """
+    # Convert to float64 for numerical stability
+    points = np.array(points, dtype=np.float64)
     
-#     # Compute mean (centroid)
-#     mean = np.mean(points, axis=0)
+    # Compute mean (centroid)
+    mean = np.mean(points, axis=0)
     
-#     # Center the data (subtract mean)
-#     centered = points - mean
+    # Center the data (subtract mean)
+    centered = points - mean
     
-#     # Use OpenCV's PCACompute for robust computation
-#     # This handles edge cases better than manual covariance computation
-#     mean_out, eigenvectors = cv2.PCACompute(centered, mean=None)
+    # Use OpenCV's PCACompute for robust computation
+    # This handles edge cases better than manual covariance computation
+    mean_out, eigenvectors = cv2.PCACompute(centered, mean=None)
     
-#     # eigenvectors[0] is the major axis (largest variance direction)
-#     # eigenvectors[1] is the minor axis (perpendicular)
-#     major_axis = eigenvectors[0]
+    # eigenvectors[0] is the major axis (largest variance direction)
+    # eigenvectors[1] is the minor axis (perpendicular)
+    major_axis = eigenvectors[0]
     
-#     # Calculate angle to rotate major axis to vertical (Y-axis)
-#     # We want the major axis to align with [0, 1] (vertical)
-#     # arctan2(y, x) gives angle from positive X-axis
-#     # For vertical alignment, we need to rotate so major_axis becomes [0, ±1]
+    # Calculate angle to rotate major axis to vertical (Y-axis)
+    # We want the major axis to align with [0, 1] (vertical)
+    # arctan2(y, x) gives angle from positive X-axis
+    # For vertical alignment, we need to rotate so major_axis becomes [0, ±1]
     
-#     # Angle of major axis from positive X-axis
-#     angle_from_x = math.atan2(major_axis[1], major_axis[0])
+    # Angle of major axis from positive X-axis
+    angle_from_x = math.atan2(major_axis[1], major_axis[0])
     
-#     # We want to rotate to vertical (90° or -90° from X-axis)
-#     # Choose the rotation that keeps the tooth mostly upright
-#     # Target angle is π/2 (90°) for vertical
-#     target_angle = math.pi / 2
-#     rotation_angle = target_angle - angle_from_x
+    # We want to rotate to vertical (90° or -90° from X-axis)
+    # Choose the rotation that keeps the tooth mostly upright
+    # Target angle is π/2 (90°) for vertical
+    target_angle = math.pi / 2
+    rotation_angle = target_angle - angle_from_x
     
-#     # Normalize angle to [-π, π]
-#     while rotation_angle > math.pi:
-#         rotation_angle -= 2 * math.pi
-#     while rotation_angle < -math.pi:
-#         rotation_angle += 2 * math.pi
+    # Normalize angle to [-π, π]
+    while rotation_angle > math.pi:
+        rotation_angle -= 2 * math.pi
+    while rotation_angle < -math.pi:
+        rotation_angle += 2 * math.pi
     
-#     return mean, eigenvectors, rotation_angle
+    return mean, eigenvectors, rotation_angle
 
 # =============================================================================
 # changed PCA logic here for evaluation
 def perform_pca(points: np.ndarray) -> Tuple[np.ndarray, np.ndarray, float]:
-    method = 1
-    if method == 1:
+    method = 0
+    if method == 0:
+        return perform_pca_0(points)
+    elif method == 1:
         return perform_pca_1(points)
     elif method == 2:
         return perform_pca_2(points)
     elif method == 3:
         return perform_pca_3(points)
-    elif method == 4:
-        return perform_pca_4(points)
     elif method == 5:
         return perform_pca_5(points)
-    
+
 # วิธี 1 (19 Feb 2026)
 def perform_pca_1(points: np.ndarray) -> Tuple[np.ndarray, np.ndarray, float]:
     """
@@ -174,7 +175,7 @@ def perform_pca_1(points: np.ndarray) -> Tuple[np.ndarray, np.ndarray, float]:
     # 1. หาจุดกึ่งกลางและ Centering
     mean = np.mean(points, axis=0)
     centered_data = points - mean
-    
+
     # 2. คำนวณ Covariance และ Eigenvectors
     cov_matrix = np.cov(centered_data, rowvar=False)
     eigenvalues, eigenvectors = np.linalg.eigh(cov_matrix)
@@ -254,10 +255,9 @@ def perform_pca_2(points: np.ndarray) -> Tuple[np.ndarray, np.ndarray, float]:
 
     # 3. คำนวณมุม (ใช้ major_axis ที่เลือกมาอย่างถูกต้องแล้ว)
     rotation_angle = np.arctan2(major_axis[1], major_axis[0])
-    
+
     return mean, eigenvectors_sorted, rotation_angle
-    
-    
+
 # ================================================================================
 def perform_pca_3(points: np.ndarray) -> Tuple[np.ndarray, np.ndarray, float]:
     """
@@ -266,22 +266,22 @@ def perform_pca_3(points: np.ndarray) -> Tuple[np.ndarray, np.ndarray, float]:
     # 1. หาจุดกึ่งกลางและ Centering
     mean = np.mean(points, axis=0)
     centered_data = points - mean
-    
+
     # 2. คำนวณ Covariance และ Eigenvectors
     cov_matrix = np.cov(centered_data, rowvar=False)
     eigenvalues, eigenvectors = np.linalg.eigh(cov_matrix)
-    
+
     # --- [จุดที่แก้] Logic เลือกแกนหลักใหม่ ---
-    
+
     # ดึงเวกเตอร์ทั้ง 2 ตัวออกมา
     vec_0 = eigenvectors[:, 0]
     vec_1 = eigenvectors[:, 1]
-    
+
     # วิธีที่ 2: Split-Centroid
     # แบ่งกลุ่มจุดที่อยู่เหนือจุด Mean Y และต่ำกว่าจุด Mean Y
     upper_half = points[points[:, 1] < mean[1]]
     lower_half = points[points[:, 1] >= mean[1]]
-    
+
     # ถ้าจุดน้อยเกินไป (ป้องกัน Error) ให้กลับไปใช้ Eigenvalue ปกติ
     if len(upper_half) < 2 or len(lower_half) < 2:
         major_axis = vec_0 if eigenvalues[0] > eigenvalues[1] else vec_1
@@ -289,16 +289,16 @@ def perform_pca_3(points: np.ndarray) -> Tuple[np.ndarray, np.ndarray, float]:
     else:
         upper_centroid = np.mean(upper_half, axis=0)
         lower_centroid = np.mean(lower_half, axis=0)
-        
+
         # สร้างเวกเตอร์ชี้จากบนลงล่าง
         anat_vector = lower_centroid - upper_centroid
         # ทำให้เป็น Unit Vector
         anat_vector = anat_vector / np.linalg.norm(anat_vector)
-        
+
         # เปรียบเทียบว่า Eigenvector ตัวไหน ทิศทางเหมือน anat_vector มากกว่ากัน
         dot_0 = abs(np.dot(vec_0, anat_vector))
         dot_1 = abs(np.dot(vec_1, anat_vector))
-        
+
         if dot_0 > dot_1:
             major_axis, minor_axis = vec_0, vec_1
         else:
@@ -309,15 +309,12 @@ def perform_pca_3(points: np.ndarray) -> Tuple[np.ndarray, np.ndarray, float]:
 
     # 3. คำนวณมุม (ใช้ major_axis ที่เลือกมาอย่างถูกต้องแล้ว)
     rotation_angle = np.arctan2(major_axis[1], major_axis[0])
-    
+
     return mean, eigenvectors_sorted, rotation_angle
-  
-  
+
  # ================================================================================
 def perform_pca_4(points: np.ndarray) -> Tuple[np.ndarray, np.ndarray, float]:
-    
-  
-    
+    return True;
 
 # ================================================================================
 def perform_pca_5(points: np.ndarray) -> Tuple[np.ndarray, np.ndarray, float]:
@@ -327,17 +324,17 @@ def perform_pca_5(points: np.ndarray) -> Tuple[np.ndarray, np.ndarray, float]:
     # 1. หาจุดกึ่งกลางและ Centering
     mean = np.mean(points, axis=0)
     centered_data = points - mean
-    
+
     # 2. คำนวณ Covariance และ Eigenvectors
     cov_matrix = np.cov(centered_data, rowvar=False)
     eigenvalues, eigenvectors = np.linalg.eigh(cov_matrix)
-    
+
     # --- [จุดที่แก้] Logic เลือกแกนหลักใหม่ ---
-    
+
     # ดึงเวกเตอร์ทั้ง 2 ตัวออกมา
-vec_0 = eigenvectors[:, 0]
+    vec_0 = eigenvectors[:, 0]
     vec_1 = eigenvectors[:, 1]
-    
+
     # วิธีที่ 4: Absolute Vertical Prior
     # เลือกเวกเตอร์ที่ตั้งฉากกับพื้นโลกมากกว่า (ค่า y มากกว่า) เป็นแกนหลักเสมอ
     if abs(vec_0[1]) > abs(vec_1[1]):
@@ -350,38 +347,33 @@ vec_0 = eigenvectors[:, 0]
 
     # 3. คำนวณมุม (ใช้ major_axis ที่เลือกมาอย่างถูกต้องแล้ว)
     rotation_angle = np.arctan2(major_axis[1], major_axis[0])
-    
+
     return mean, eigenvectors_sorted, rotation_angle
-
-
-
-
-
 
 def create_rotation_matrix(angle: float, center: Tuple[float, float]) -> np.ndarray:
     """
     Create a 2x3 affine rotation matrix for rotating points around a center.
-    
+
     The rotation matrix performs:
     1. Translate point to origin (subtract center)
     2. Rotate by angle
     3. Translate back (add center)
-    
+
     Rotation formula:
     x' = (x - cx) * cos(θ) - (y - cy) * sin(θ) + cx
     y' = (x - cx) * sin(θ) + (y - cy) * cos(θ) + cy
-    
+
     Args:
         angle: Rotation angle in radians (positive = counter-clockwise)
         center: (cx, cy) pivot point for rotation
-        
+
     Returns:
         2x3 affine transformation matrix
     """
     cx, cy = center
     cos_a = math.cos(angle)
     sin_a = math.sin(angle)
-    
+
     # 2x3 affine matrix: [[cos, -sin, tx], [sin, cos, ty]]
     # where tx and ty account for the pivot point
     rotation_matrix = np.array([
@@ -504,8 +496,8 @@ def classify_caries_surface(
     - Lower Jaw (31-48): Occlusal surface is at top (low Y values)
     
     - Class 0 (Occlusal): Caries in occlusal zone (biting surface)
-    - Class 1 (Proximal): Caries in left/right zones (inter-dental contact)
-    - Class 2 (Lingual/Other): Caries in other positions
+    - Class 1 (Mesial): Caries in left/right zones (inter-dental contact)
+    - Class 2 (Distal): Caries in other positions
     
     Args:
         tooth_id: FDI tooth notation (e.g., "11", "26", "45")
@@ -518,7 +510,7 @@ def classify_caries_surface(
         int: Classification result
             - 0: Occlusal (biting/chewing surface)
             - 1: Proximal (mesial/distal - between teeth)
-            - 2: Lingual/Other (tongue-side or other)
+            - 2: Distal (away from midline)
             
     Raises:
         ValueError: If input polygons are invalid or empty
@@ -627,14 +619,15 @@ def classify_caries_surface(
     
     # Check for Proximal (Class 1)
     # Proximal surfaces are on left (mesial) or right (distal) sides
-    is_proximal_left = rel_x <= proximal_threshold
-    is_proximal_right = rel_x >= (1.0 - proximal_threshold)
+    is_mesial = rel_x <= proximal_threshold
+    is_distal = rel_x >= (1.0 - proximal_threshold)
     
-    if is_proximal_left or is_proximal_right:
-        return 1  # Class 1: Proximal (Mesial/Distal)
-    
-    # Default: Lingual/Other (Class 2)
-    return 2  # Class 2: Lingual/Buccal/Other
+    if is_mesial:
+        return 1  # Class 1: Mesial
+    if is_distal:
+        return 2  # Class 2: Distal
+    # Default: treat as Occlusal (หรือจะ return -1/Unknown ก็ได้)
+    return 0  # Class 0: Occlusal
 
 
 # =============================================================================
@@ -733,24 +726,22 @@ def classify_caries_surface_detailed(
         is_occlusal = rel_y >= (1.0 - occlusal_threshold)
     else:
         is_occlusal = rel_y <= occlusal_threshold
-    
-    is_proximal_left = rel_x <= proximal_threshold
-    is_proximal_right = rel_x >= (1.0 - proximal_threshold)
+    is_mesial = rel_x <= proximal_threshold
+    is_distal = rel_x >= (1.0 - proximal_threshold)
     
     # Determine classification
     if is_occlusal:
         classification = 0
         surface_name = "Occlusal"
-    elif is_proximal_left or is_proximal_right:
+    elif is_mesial:
         classification = 1
-        surface_name = "Proximal"
-        if is_proximal_left:
-            surface_name = "Proximal (Left/Mesial)"
-        else:
-            surface_name = "Proximal (Right/Distal)"
-    else:
+        surface_name = "Mesial"
+    elif is_distal:
         classification = 2
-        surface_name = "Lingual/Other"
+        surface_name = "Distal"
+    else:
+        classification = 0
+        surface_name = "Occlusal"
     
     return {
         'classification': classification,
@@ -774,8 +765,8 @@ def classify_caries_surface_detailed(
         'rotated_caries_polygon': rotated_caries.tolist(),
         'zone_checks': {
             'is_occlusal': is_occlusal,
-            'is_proximal_left': is_proximal_left,
-            'is_proximal_right': is_proximal_right,
+            'is_mesial': is_mesial,
+            'is_distal': is_distal,
             'occlusal_threshold': occlusal_threshold,
             'proximal_threshold': proximal_threshold
         }
@@ -788,8 +779,8 @@ def classify_caries_surface_detailed(
 
 SURFACE_NAMES = {
     0: "Occlusal",
-    1: "Proximal",
-    2: "Lingual/Other"
+    1: "Mesial",
+    2: "Distal"
 }
 
 
