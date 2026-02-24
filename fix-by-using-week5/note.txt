@@ -1,0 +1,17 @@
+evaluation workflow:
+1. create new evaluation.py
+2. study the code of
+    "perform_pca_0
+    perform_pca_1
+    perform_pca_2
+    perform_pca_3
+    perform_pca_5"
+    in week5/caries_surface_classifier.py
+3. อยาก evaluation ผล ของ 5 solution นี้ ต้องทำยังไง เขียนโค้ดอย่างไรเพื่อ evaluation เหล่านี้
+    "perform_pca_0
+    perform_pca_1
+    perform_pca_2
+    perform_pca_3
+    perform_pca_5"
+4. expect output is F1-score precision recall Confusion matrix of each methods
+5. all of comment have to be in Thai for Thai Developer

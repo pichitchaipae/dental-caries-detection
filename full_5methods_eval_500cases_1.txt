@@ -1,0 +1,88 @@
+=== Full 5-Method Evaluation (Case 1-500) ===
+Total decayed teeth evaluated: 1743
+
+=== perform_pca_0 ===
+Confusion Matrix:
+[[326   7   4]
+ [435  68  59]
+ [473 171 162]]
+Report:
+              precision    recall  f1-score   support
+
+    Occlusal       0.26      0.94      0.41       347
+      Mesial       0.28      0.12      0.17       577
+      Distal       0.72      0.20      0.31       819
+
+   micro avg       0.33      0.32      0.32      1743
+   macro avg       0.42      0.42      0.30      1743
+weighted avg       0.48      0.32      0.28      1743
+
+
+=== perform_pca_1 ===
+Confusion Matrix:
+[[269  54  14]
+ [340 210  12]
+ [440 153 213]]
+Report:
+              precision    recall  f1-score   support
+
+    Occlusal       0.26      0.78      0.39       347
+      Mesial       0.50      0.36      0.42       577
+      Distal       0.89      0.26      0.40       819
+
+   micro avg       0.41      0.40      0.40      1743
+   macro avg       0.55      0.47      0.40      1743
+weighted avg       0.64      0.40      0.41      1743
+
+
+=== perform_pca_2 ===
+Confusion Matrix:
+[[269  54  14]
+ [338 211  13]
+ [440 153 213]]
+Report:
+              precision    recall  f1-score   support
+
+    Occlusal       0.26      0.78      0.39       347
+      Mesial       0.50      0.37      0.42       577
+      Distal       0.89      0.26      0.40       819
+
+   micro avg       0.41      0.40      0.40      1743
+   macro avg       0.55      0.47      0.40      1743
+weighted avg       0.64      0.40      0.41      1743
+
+
+=== perform_pca_3 ===
+Confusion Matrix:
+[[273  51  13]
+ [339 210  13]
+ [440 153 213]]
+Report:
+              precision    recall  f1-score   support
+
+    Occlusal       0.26      0.79      0.39       347
+      Mesial       0.51      0.36      0.42       577
+      Distal       0.89      0.26      0.40       819
+
+   micro avg       0.41      0.40      0.40      1743
+   macro avg       0.55      0.47      0.41      1743
+weighted avg       0.64      0.40      0.41      1743
+
+
+=== perform_pca_5 ===
+Confusion Matrix:
+[[270  53  14]
+ [348 211   3]
+ [452 150 204]]
+Report:
+              precision    recall  f1-score   support
+
+    Occlusal       0.25      0.78      0.38       347
+      Mesial       0.51      0.37      0.43       577
+      Distal       0.92      0.25      0.39       819
+
+   micro avg       0.40      0.39      0.40      1743
+   macro avg       0.56      0.46      0.40      1743
+weighted avg       0.65      0.39      0.40      1743
+
+
