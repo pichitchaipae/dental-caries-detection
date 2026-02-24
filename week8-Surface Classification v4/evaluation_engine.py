@@ -32,6 +32,7 @@ Date: 2026-02
 
 import os
 import sys
+import gc
 import json
 import math
 import cv2 # type: ignore
@@ -41,6 +42,8 @@ from pathlib import Path
 from datetime import datetime
 from typing import List, Dict, Tuple, Optional
 from collections import defaultdict
+
+from tqdm import tqdm  # type: ignore
 
 import matplotlib # type: ignore
 matplotlib.use("Agg")
@@ -55,7 +58,9 @@ from multi_zone_classifier import (
     set_pca_method,
     get_pca_method,
     get_pca_method_name,
+    perform_pca,
     PCA_METHOD_NAMES,
+    VALID_PCA_METHODS,
 )
 from snodent_tooth_map import FDI_TOOTH_NAMES
 
@@ -93,6 +98,28 @@ SOFT_MATCH_FRACTION_THRESHOLD = 0.30   # 30 %
 # Surface Label Normalization
 # =============================================================================
 
+# ── Task 4 STRICT RULE: Surface Incorrect classes ────────────────────
+# WARNING!!!  The "Surface Incorrect" classes MUST strictly be limited
+# to: ['Distal', 'Mesial', 'Occlusal'].  No other classes are allowed.
+ALLOWED_SURFACE_CLASSES = ["Distal", "Mesial", "Occlusal"]
+
+
+def enforce_surface_rule(surface: str) -> str:
+    """Enforce the strict surface classification rule.
+
+    If *surface* is not one of ``ALLOWED_SURFACE_CLASSES``, it is
+    remapped to ``'Unclassified'`` and a warning is printed.
+
+    This ensures no unexpected classes leak into evaluation metrics.
+    """
+    if surface in ALLOWED_SURFACE_CLASSES:
+        return surface
+    if surface and surface != "Unclassified":
+        print(f"  [WARN][STRICT RULE] Unexpected surface class '{surface}' "
+              f"dropped → 'Unclassified'. Allowed: {ALLOWED_SURFACE_CLASSES}")
+    return "Unclassified"
+
+
 # NOTE: normalize_surface (coarse) and normalize_surface_fine (fine) are
 #       currently IDENTICAL — both map to the same 3 classes
 #       (Mesial, Occlusal, Distal).
@@ -107,30 +134,34 @@ SOFT_MATCH_FRACTION_THRESHOLD = 0.30   # 30 %
 #       currently produce the same result.
 
 def normalize_surface(raw: str) -> str:
-    """Normalize a raw surface label to {Mesial, Distal, Occlusal, Unclassified}."""
+    """Normalize a raw surface label to {Mesial, Distal, Occlusal, Unclassified}.
+
+    After normalization, the result is passed through ``enforce_surface_rule``
+    to guarantee only allowed classes survive.
+    """
     r = raw.strip().lower()
     if "occlusal" in r:
-        return "Occlusal"
+        return enforce_surface_rule("Occlusal")
     if "mesial" in r:
-        return "Mesial"
+        return enforce_surface_rule("Mesial")
     if "distal" in r:
-        return "Distal"
+        return enforce_surface_rule("Distal")
     return "Unclassified"
 
 
 def normalize_surface_fine(raw: str) -> str:
     """Normalize a raw surface label to {Mesial, Distal, Occlusal, Unclassified}.
-    
-    NOTE: Currently identical to normalize_surface(). 
+
+    NOTE: Currently identical to normalize_surface().
     TODO: Differentiate to support compound labels (MO, DO, MOD) if needed.
     """
     r = raw.strip().lower()
     if "occlusal" in r:
-        return "Occlusal"
+        return enforce_surface_rule("Occlusal")
     if "mesial" in r:
-        return "Mesial"
+        return enforce_surface_rule("Mesial")
     if "distal" in r:
-        return "Distal"
+        return enforce_surface_rule("Distal")
     return "Unclassified"
 
 
@@ -495,6 +526,7 @@ def evaluate_all_cases(
     gt_surfaces_fine = []
     pred_surfaces_fine = []
     cases_processed = cases_skipped = 0
+    failed_cases: List[Dict] = []   # track per-case errors for the log
 
     if verbose:
         print("=" * 70)
@@ -505,7 +537,14 @@ def evaluate_all_cases(
         print(f"Cases: {cases_to_run[:5]}{'...' if len(cases_to_run) > 5 else ''}  |  Output: {eval_output}")
         print("=" * 70)
 
-    for case_num in cases_to_run:
+    pbar = tqdm(
+        cases_to_run,
+        desc=f"Evaluating Method {get_pca_method()}",
+        unit="case",
+        ncols=100,
+        leave=True,
+    )
+    for case_num in pbar:
         gt_folder = MATERIAL_DIR / f"case {case_num}"
         if not gt_folder.exists():
             cases_skipped += 1
@@ -515,11 +554,22 @@ def evaluate_all_cases(
             result = evaluate_single_case(case_num, reclassify=reclassify, out_dir=eval_output)
         except Exception as e:
             if verbose:
-                print(f"[ERROR] Case {case_num}: {e}")
+                pbar.set_postfix_str(f"FAIL case {case_num}")
+            failed_cases.append({"case": case_num, "error": str(e)})
             cases_skipped += 1
             continue
+        finally:
+            # ── Strict Memory Management ──────────────────────────────
+            gc.collect()
+            try:
+                import torch
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+            except ImportError:
+                pass
 
         cases_processed += 1
+        pbar.set_postfix_str(f"TP={all_tp} FP={all_fp} FN={all_fn}")
         tp = len(result["matched"])
         fp_count = len(result["fp"])
         fn_count = len(result["fn"])
@@ -649,9 +699,6 @@ def evaluate_all_cases(
                 "surface_match": "False",
             })
 
-        if verbose and cases_processed % 50 == 0:
-            print(f"  ... processed {cases_processed} cases (TP={all_tp}, FP={all_fp}, FN={all_fn})")
-
     # ── Aggregate metrics ────────────────────────────────────────────
     precision = all_tp / (all_tp + all_fp) if (all_tp + all_fp) > 0 else 0
     recall    = all_tp / (all_tp + all_fn) if (all_tp + all_fn) > 0 else 0
@@ -772,11 +819,43 @@ def evaluate_all_cases(
     summary["n_unclassified_gt"]   = n_unclassified_gt
     summary["n_unclassified_pred"] = n_unclassified_pred
     summary["n_matched_3class"]    = len(matched_3cls)
+    summary["failed_cases"]          = failed_cases
+
+    # ── Strict Rule Assertion ─────────────────────────────────────────
+    # Verify no unexpected classes leaked through.
+    _unexpected_gt   = [g for g in filt_gt   if g not in ALLOWED_SURFACE_CLASSES]
+    _unexpected_pred = [p for p in filt_pred if p not in ALLOWED_SURFACE_CLASSES]
+    assert len(_unexpected_gt) == 0, (
+        f"Strict Rule Violated: unexpected GT classes: {set(_unexpected_gt)}"
+    )
+    assert len(_unexpected_pred) == 0, (
+        f"Strict Rule Violated: unexpected Pred classes: {set(_unexpected_pred)}"
+    )
 
     # ── Save summary JSON (after 3-class metrics are computed) ───────
     summary_path = eval_output / "evaluation_summary.json"
     with open(summary_path, "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2, ensure_ascii=False)
+
+    # ── Per-Class Metrics Dashboard CSV ──────────────────────────────
+    dashboard_rows = []
+    for cls in VALID_CLASSES:
+        m = per_class_metrics[cls]
+        dashboard_rows.append({
+            "pca_method": get_pca_method(),
+            "pca_method_name": method_name,
+            "class": cls,
+            "precision": m["precision"],
+            "recall":    m["recall"],
+            "f1":        m["f1"],
+            "support":   m["support"],
+            "TP": m["TP"], "FP": m["FP"], "FN": m["FN"],
+        })
+    dashboard_df = pd.DataFrame(dashboard_rows)
+    dashboard_path = eval_output / "per_class_metrics.csv"
+    dashboard_df.to_csv(dashboard_path, index=False, encoding="utf-8-sig")
+    if verbose:
+        print(f"  [Saved] Per-class metrics dashboard -> {dashboard_path}")
 
     # ── Confusion matrices (3-class only) ────────────────────────────
     if filt_gt and filt_pred:
@@ -857,7 +936,7 @@ def compare_all_methods(
     Run evaluation for all implemented PCA methods (1, 2, 3, 5) and
     produce a comparison summary table.
     """
-    implemented_methods = [1, 2, 3, 5]
+    implemented_methods = [0, 1, 2, 3, 5]
     comparison_rows = []
 
     for method in implemented_methods:
@@ -947,8 +1026,8 @@ def main():
                         help="Evaluate a single case")
     parser.add_argument("--sample", type=str, default=None,
                         help="Comma-separated case numbers, e.g. --sample 311,33")
-    parser.add_argument("--pca-method", type=int, choices=[1, 2, 3, 5], default=5,
-                        help="PCA method to use (1/2/3/5, default: 5)")
+    parser.add_argument("--pca-method", type=int, choices=[0, 1, 2, 3, 5], default=5,
+                        help="PCA method to use (0/1/2/3/5, default: 5). 0=baseline")
     parser.add_argument("--compare-all", action="store_true",
                         help="Run all PCA methods and produce comparison table")
     parser.add_argument("--no-reclassify", action="store_true",

@@ -120,6 +120,13 @@ week8-Surface Classification v4/dental_analysis_output/
 week8-Surface Classification v4/evaluation_output/
 
 # =========================
+# Week9 outputs (method subdirs, CSVs, PNGs)
+# =========================
+week9_pca_evaluation/method_*/
+week9_pca_evaluation/comparison_summary.csv
+week9_pca_evaluation/per_class_dashboard.csv
+
+# =========================
 # Non-active / archived weeks
 # =========================
 _non-using/

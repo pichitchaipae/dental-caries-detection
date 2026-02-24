@@ -58,6 +58,7 @@ MAX_TILT_DEG = 45.0
 _PCA_METHOD = 5
 
 PCA_METHOD_NAMES = {
+    0: "method_0_baseline_opencv",
     1: "method_1_square_heuristic",
     2: "method_2_max_span",
     3: "method_3_split_centroid",
@@ -67,10 +68,10 @@ PCA_METHOD_NAMES = {
 
 
 def set_pca_method(method: int):
-    """Set the global PCA method (1-5). Thread-unsafe."""
+    """Set the global PCA method (0-5). Thread-unsafe."""
     global _PCA_METHOD
-    if method not in (1, 2, 3, 4, 5):
-        raise ValueError(f"Invalid PCA method: {method}. Must be 1-5.")
+    if method not in (0, 1, 2, 3, 4, 5):
+        raise ValueError(f"Invalid PCA method: {method}. Must be 0-5.")
     _PCA_METHOD = method
 
 
@@ -105,6 +106,53 @@ def _get_quadrant(tooth_id: str) -> int:
 
 def _centroid(pts: np.ndarray) -> Tuple[float, float]:
     return float(np.mean(pts[:, 0])), float(np.mean(pts[:, 1]))
+
+
+# ─────────────────────────────────────────────────────────────────────
+# PCA Method 0 – Baseline OpenCV PCA (original week5 implementation)
+# ─────────────────────────────────────────────────────────────────────
+
+def _pca_method_0(pts: np.ndarray, tooth_id: str) -> Tuple[np.ndarray, float, bool]:
+    """
+    Baseline PCA using OpenCV's PCACompute (original week5 method).
+
+    This is the **unmodified** original PCA alignment that was used
+    before any heuristic improvements were added.  It serves as the
+    benchmark / regression baseline for Methods 1-5.
+
+    Algorithm:
+      1. Center points by subtracting mean.
+      2. ``cv2.PCACompute`` → eigenvectors sorted by variance.
+      3. Take eigenvectors[0] (largest-variance direction) as major axis.
+      4. Rotate so major axis becomes vertical (π/2 from +X).
+      5. Normalize angle to [-π, π].
+
+    No jaw-aware flipping, no square heuristic, no angle clamping.
+    """
+    pts = pts.astype(np.float64)
+    mean = np.mean(pts, axis=0)
+    centered = pts - mean
+
+    # OpenCV PCA – robust numerical computation
+    _, eigenvectors = cv2.PCACompute(centered, mean=None)
+
+    # eigenvectors[0] = major axis (largest variance)
+    major_axis = eigenvectors[0]
+
+    # Angle of major axis from +X axis
+    angle_from_x = math.atan2(major_axis[1], major_axis[0])
+
+    # Rotate so major axis aligns with vertical (+Y, i.e. π/2)
+    rotation_angle = math.pi / 2 - angle_from_x
+
+    # Normalize to [-π, π]
+    while rotation_angle > math.pi:
+        rotation_angle -= 2 * math.pi
+    while rotation_angle < -math.pi:
+        rotation_angle += 2 * math.pi
+
+    # Baseline has no angle clamping → was_clamped is always False
+    return mean, rotation_angle, False
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -352,22 +400,90 @@ def _pca_rotation_angle_fixed(
 
 def _pca_dispatch(pts: np.ndarray, tooth_id: str) -> Tuple[np.ndarray, float, bool]:
     """
-    Dispatch to the selected PCA method.
+    Dispatch to the selected PCA method (uses global ``_PCA_METHOD``).
     Returns (mean, rotation_angle_rad, was_clamped).
     """
     method = _PCA_METHOD
-    if method == 1:
+    if method == 0:
+        return _pca_method_0(pts, tooth_id)
+    elif method == 1:
         return _pca_method_1(pts, tooth_id)
     elif method == 2:
         return _pca_method_2(pts, tooth_id)
     elif method == 3:
         return _pca_method_3(pts, tooth_id)
     elif method == 4:
-        raise NotImplementedError("PCA method 4 is not implemented. Use 1, 2, 3, or 5.")
+        raise NotImplementedError("PCA method 4 is not implemented. Use 0, 1, 2, 3, or 5.")
     elif method == 5:
         return _pca_rotation_angle_fixed(pts, tooth_id)
     else:
-        raise ValueError(f"Invalid PCA method: {method}. Must be 1-5.")
+        raise ValueError(f"Invalid PCA method: {method}. Must be 0-5.")
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Public API — perform_pca(points, method)
+# ─────────────────────────────────────────────────────────────────────
+
+VALID_PCA_METHODS = [0, 1, 2, 3, 5]  # Method 4 is placeholder – excluded
+
+
+def perform_pca(
+    points: np.ndarray,
+    tooth_id: str = "11",
+    method: int = 0,
+) -> Tuple[np.ndarray, float, bool]:
+    """
+    Compute PCA-based vertical axis for a tooth polygon.
+
+    This is the **refactored public wrapper** that accepts ``method``
+    as an explicit argument instead of relying on the global
+    ``_PCA_METHOD``.  Use this when iterating over multiple methods
+    in an evaluation loop.
+
+    Parameters
+    ----------
+    points : np.ndarray
+        (N, 2) array of tooth polygon / segmentation points.
+    tooth_id : str
+        FDI tooth identifier (e.g. ``"11"``, ``"36"``).
+    method : int
+        PCA method number.  Must be one of ``[0, 1, 2, 3, 5]``.
+        Method 0 is the baseline OpenCV PCA (no heuristics).
+
+    Returns
+    -------
+    mean : np.ndarray
+        Centroid of the point cloud.
+    rotation_angle_rad : float
+        Rotation angle (radians) to align the tooth vertically.
+    was_clamped : bool
+        ``True`` if the angle exceeded ``MAX_TILT_DEG`` and was clamped
+        to 0°.  Always ``False`` for Method 0 (no clamping).
+
+    Raises
+    ------
+    ValueError
+        If *method* is not in ``[0, 1, 2, 3, 5]``.
+    """
+    if method not in VALID_PCA_METHODS:
+        raise ValueError(
+            f"Invalid PCA method: {method}. Must be one of {VALID_PCA_METHODS}."
+        )
+
+    pts = np.asarray(points, dtype=np.float64)
+
+    if method == 0:
+        return _pca_method_0(pts, tooth_id)
+    elif method == 1:
+        return _pca_method_1(pts, tooth_id)
+    elif method == 2:
+        return _pca_method_2(pts, tooth_id)
+    elif method == 3:
+        return _pca_method_3(pts, tooth_id)
+    elif method == 5:
+        return _pca_rotation_angle_fixed(pts, tooth_id)
+    # unreachable due to validation above, but keep for safety
+    raise ValueError(f"Unexpected method: {method}")
 
 
 def _rotation_matrix(angle: float, cx: float, cy: float) -> np.ndarray:
