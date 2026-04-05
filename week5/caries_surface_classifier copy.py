@@ -353,11 +353,6 @@ vec_0 = eigenvectors[:, 0]
     
     return mean, eigenvectors_sorted, rotation_angle
 
-
-
-
-
-
 def create_rotation_matrix(angle: float, center: Tuple[float, float]) -> np.ndarray:
     """
     Create a 2x3 affine rotation matrix for rotating points around a center.

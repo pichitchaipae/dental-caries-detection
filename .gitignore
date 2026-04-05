@@ -102,3 +102,5 @@ presentation_hero_shots/
 # Local / Editor Configs
 # =========================
 .claude/
+metadata/
+metadata
