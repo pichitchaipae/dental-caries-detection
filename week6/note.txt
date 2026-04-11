@@ -58,7 +58,7 @@ Presentation & Analysis:
 
 Debug / Test (can be deleted):
   - _debug_accuracy.py           : Debug script for surface accuracy analysis
-  - _test_mz_refined.py          : Test script for refined MZ classifier
+  - test_mz_refined.py           : Test script for refined MZ classifier
 
 Output Directories:
   - evaluation_output/           : Per-case results (500 folders)

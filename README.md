@@ -1,314 +1,143 @@
-# Dental Caries & Surface Detection System
+﻿# SP Dental Caries Detection Workspace
 
 <p align="center">
-  <img src="logoict.png" width="200" alt="ICT Mahidol Logo">
+  <img src="assets/logoict.png" width="200" alt="ICT Mahidol Logo">
 </p>
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)
-![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-EE4C2C?logo=pytorch&logoColor=white)
-![YOLO](https://img.shields.io/badge/YOLO-v8%2Fv11-00FFFF)
-![OpenCV](https://img.shields.io/badge/OpenCV-4.x-5C3EE8?logo=opencv&logoColor=white)
-![Precision](https://img.shields.io/badge/Precision-99.1%25-brightgreen)
-![F1 Score](https://img.shields.io/badge/F1--Score-0.8337-blue)
-![License](https://img.shields.io/badge/License-Academic-yellow)
+This workspace contains a multi-stage computer vision pipeline for panoramic dental X-rays (OPG). The main flow covers tooth segmentation and recognition, caries detection, caries-to-tooth mapping, and caries surface classification. Work is organized as week-based iterations plus a phase2 integration area.
 
-A multi-stage computer vision pipeline for automated **dental caries detection** and **surface classification** from panoramic dental X-rays (OPG). The system identifies caries lesions, maps them to specific teeth using FDI notation, and classifies the affected surface (Occlusal, Mesial, Distal, Lingual) using PCA-based orientation analysis and point-cloud voting.
+The repository also includes large intermediate outputs, historical experiments, and evaluation artifacts. Recent cleanup actions focused on non-destructive organization: moving obvious root-level utility files into standard folders, archiving cache artifacts into `_trash`, and preserving all research content.
 
-> **Final Performance (Week 7):** Precision **99.1%** | Recall **72.0%** | F1-Score **83.4%** | Soft Surface Accuracy **100%**
-
----
-
-## Team Members
-
-| Name | Student ID | GitHub | Email |
-| :--- | :--- | :--- | :--- |
-| **Naris Pholpak** (Phai) | 6687025 | [@1tshadowz](https://github.com/1tshadowz) | <phainaris@gmail.com> |
-| **Pichitchai Paecharoenchai** (Jao) | 6687033 | [@pichitchaipae](https://github.com/pichitchaipae) | <jao.pichitchai@gmail.com> |
-| **Sukollapat Pisuchpen** (Pond) | 6687052 | [@SukollapatPis](https://github.com/SukollapatPis) | <sukollapat.pis@gmail.com> |
-
-**Faculty:** Faculty of Information and Communication Technology (ICT), Mahidol University
-**Advisor:** Dr. Sirawich Vachmanus (<sirawich.vac@mahidol.ac.th>)
-
----
-
-## Project Objectives
-
-### 1. Tooth Segmentation & Identification (FDI Notation)
-
-- Segment and identify all 32 teeth in panoramic X-rays using the FDI (ISO 3950) two-digit notation system.
-- Two-stage approach: YOLO panoramic detection → Detectron2 fine segmentation.
-
-### 2. Caries Detection
-
-- Detect dental caries lesions using YOLOv8s trained on 3 classes: **Occlusal**, **Proximal**, and **Lingual**.
-- Map detected caries to specific teeth via pixel-level containment matching.
-
-### 3. Caries Surface Classification
-
-- Classify the specific surface affected by caries using PCA orientation normalization and **Multi-Zone Point-Cloud Voting** (Mesial / Central / Distal zones).
-- Generates combined surface labels: **O, MO, DO, MOD, L**, etc.
-
----
-
-## Pipeline Architecture
-
-```text
-┌──────────────────────────────────────────────────────────────────────┐
-│                   INPUT: Panoramic Dental X-ray (OPG)                │
-└──────────────────────────────────────────────────────────────────────┘
-                                  │
-                    ┌─────────────┴─────────────┐
-                    ▼                           ▼
-         ┌──────────────────┐        ┌──────────────────────┐
-         │ Stage 1: Tooth   │        │ Stage 2: Caries      │
-         │ Segmentation     │        │ Detection            │
-         │ (YOLOv11m-seg +  │        │ (YOLOv8s, 3-class)   │
-         │  Detectron2)     │        │                      │
-         └────────┬─────────┘        └──────────┬───────────┘
-                  │                              │
-                  └──────────┬───────────────────┘
-                             ▼
-              ┌──────────────────────────────┐
-              │ Stage 3: Caries-to-Tooth     │
-              │ Mapping (Pixel Containment)  │
-              └──────────────┬───────────────┘
-                             ▼
-              ┌──────────────────────────────┐
-              │ Stage 4: Surface             │
-              │ Classification               │
-              │ (PCA + M-C-D Zone Voting)    │
-              └──────────────┬───────────────┘
-                             ▼
-              ┌──────────────────────────────┐
-              │ OUTPUT: Tooth ID + Surface   │
-              │ e.g., Tooth 36 — Occlusal   │
-              │       Tooth 45 — MO          │
-              └──────────────────────────────┘
-```
-
----
-
-## Results
-
-Evaluated on **500 panoramic dental X-ray cases** with expert-annotated AIM-XML ground truth.
-
-| Metric | Value |
-| :--- | :--- |
-| True Positives (TP) | 1,424 |
-| False Positives (FP) | 13 |
-| False Negatives (FN) | 555 |
-| **Precision** | **0.9910** |
-| **Recall** | **0.7196** |
-| **F1-Score** | **0.8337** |
-| **Strict Surface Accuracy** | **0.7219** |
-| **Soft Surface Accuracy** | **1.0000** |
-
-> Precision improved from **83.7% → 99.1%** after eliminating Phantom False Positives (Task 5).
-> Surface accuracy improved from **27% → 100%** (soft) after Multi-Zone Voting (Week 6), PCA fixes + Soft Matching (Week 7).
->
-> "Soft" accuracy counts Proximal ↔ Mesial/Distal as correct; "Strict" requires exact surface name.
-
----
-
-## Pipeline Evolution & Sample Outputs
-
-### Dataset
-
-Input: 500 panoramic dental X-rays (OPG) with expert-annotated AIM-XML ground truth.
-
-<p align="center">
-  <img src="docs/images/raw_panoramic_xray.png" alt="Raw Panoramic X-ray (Case 1)" width="700">
-  <br><em>Raw panoramic dental X-ray — Case 1</em>
-</p>
-
-### Week 1 — Tooth Segmentation Training
-
-Trained YOLOv11m-seg on 500 cases (32 FDI tooth classes, 80/20 split).
-
-<p align="center">
-  <img src="docs/images/week1_training_curves.png" alt="Week 1 Training Curves" width="700">
-  <br><em>YOLOv11m-seg training curves — loss convergence and mAP over epochs</em>
-</p>
-
-### Week 2 — Tooth Detection & Segmentation
-
-Two-stage pipeline: YOLO panoramic detection followed by Detectron2 instance segmentation.
-
-<p align="center">
-  <img src="docs/images/week2_tooth_detection.png" alt="Week 2 Tooth Detection" width="700">
-  <br><em>YOLO tooth detection — bounding boxes with FDI labels (Case 1)</em>
-</p>
-
-### Week 3 — Caries-to-Tooth Mapping
-
-Overlay binary ROI masks onto tooth polygons to assign caries regions to specific teeth.
-
-<p align="center">
-  <img src="docs/images/week3_caries_mapping.png" alt="Week 3 Caries Mapping" width="700">
-  <br><em>Caries-to-tooth pixel containment alignment (Case 1)</em>
-</p>
-
-### Week 4 — Caries Detection Model
-
-Trained YOLOv8s on 3 caries classes (Occlusal, Proximal, Lingual).
-
-<p align="center">
-  <img src="docs/images/week4_caries_training_curves.png" alt="Week 4 Caries Training" width="700">
-  <br><em>YOLOv8s caries detection training curves</em>
-</p>
-
-### Week 5 — Surface Classification v1
-
-PCA-based orientation normalization with OBB zone classification per tooth.
-
-<p align="center">
-  <img src="docs/images/week5_surface_classification.png" alt="Week 5 Surface Classification" width="500">
-  <br><em>PCA orientation + surface zone assignment — Tooth 15 (Case 1)</em>
-</p>
-
-### Week 7 — Final Production Output
-
-Pipeline hardening with 6 bug fixes: PCA eigenvector correction, boundary erosion, M/D flip fix, soft surface matching, and phantom FP elimination.
-
-<p align="center">
-  <img src="week7/hero_shots/5_Overall_Dashboard_Summary/case_274_8teeth_soft100pct_strict100pct.png" alt="Final Validation Dashboard — Case 274" width="800">
-  <br><em>Final validation dashboard — Case 274 (8 teeth, 100% soft accuracy, 100% strict accuracy)</em>
-</p>
-
----
-
-## Project Structure
+## Folder Structure
 
 ```text
 SP/
-├── material/                           # Raw data & pre-trained models (excluded from git)
-│   ├── 500 cases with annotation/      #   500 panoramic X-rays + AIM-XML annotations
-│   ├── 500-roi/                        #   Binary ROI caries masks
-│   └── Tooth Segmentation + Recognition model/
-│       └── weights/                    #   Pre-trained YOLO & Detectron2 weights
-│
-├── week1/                              # Tooth Segmentation Model Training
-│   ├── train.py                        #   YOLOv11m-seg training (32 FDI classes)
-│   ├── prepare_dataset.py              #   XML annotation → YOLO format converter
-│   ├── data.yaml                       #   Dataset config (class names, paths)
-│   └── ...
-│
-├── week2/                              # Tooth Segmentation Inference (500 Cases)
-│   ├── process_500_cases.py            #   Batch processing: YOLO + Detectron2 pipeline
-│   └── README_500_cases.md             #   Processing documentation
-│
-├── week3/                              # Caries-to-Tooth Mapping (v1)
-│   └── dental_caries_analysis.py       #   Overlay tooth coords on ROI masks
-│
-├── week4/                              # Caries Detection Pipeline
-│   ├── inference.py                    #   Main detection (YOLOv8s + Detectron2 mapping)
-│   ├── train_caries.py                 #   Train caries detection model (3-class)
-│   ├── prepare_caries_dataset.py       #   Extract caries annotations → YOLO format
-│   ├── run_full_batch_v3_advanced.py   #   Production batch processor (500 cases)
-│   ├── main/                           #   High-accuracy inference config variant
-│   └── README.md                       #   Pipeline documentation
-│
-├── week5/                              # Surface Classification v1 (PCA + OBB)
-│   ├── caries_surface_classifier.py    #   PCA-based surface zone classifier
-│   ├── process_surface_classification.py  # Batch surface classification
-│   ├── visualization_utils.py          #   Debug visualization tools
-│   └── test_classification.py          #   Unit tests
-│
-├── week6/                              # Surface Classification v2 + Evaluation (baseline)
-│   ├── multi_zone_classifier.py        #   M-C-D Point-Cloud Voting classifier (v1)
-│   ├── evaluation_engine.py            #   End-to-end evaluation pipeline (v1)
-│   ├── xml_ground_truth_parser.py      #   AIM-XML ground truth parser
-│   ├── snodent_tooth_map.py            #   SNODENT code → FDI notation mapper
-│   ├── validation_dashboard.py         #   Results visualization dashboard (v1)
-│   ├── presentation_script.md          #   Final presentation script
-│   └── ...
-│
-├── week7/                              # Pipeline Hardening & Final Evaluation
-│   ├── multi_zone_classifier.py        #   4-rule PCA orientation + M/D flip fix
-│   ├── evaluation_engine.py            #   Soft-match eval + phantom FP filter
-│   ├── dental_caries_analysis.py       #   Boundary erosion + unassigned caries
-│   ├── validation_dashboard.py         #   Per-tooth PCA debug dashboard
-│   ├── select_hero_shots_v2.py         #   5-category hero-shot selector
-│   ├── snodent_tooth_map.py            #   importlib wrapper → week6
-│   ├── xml_ground_truth_parser.py      #   importlib wrapper → week6
-│   ├── dental_analysis_output/         #   500-case caries mapping + dashboards
-│   ├── evaluation_output/              #   Final eval CSV + confusion matrices
-│   └── hero_shots/                     #   25 curated validation dashboards
-│
-├── requirements.txt                    # Python dependencies
-├── .gitignore
-└── README.md                           # This file
+|- README.md                          # Project overview and usage
+|- cleanup-log.md                     # Atomic cleanup action log
+|- requirements.txt                   # Base Python dependencies
+|- assets/                            # Static assets (logo)
+|- data/                              # Input data + pretrained model files (~1.63 GB)
+|- docs/                              # Documentation assets and images
+|- outputs/                           # Diagnostics and run logs generated at root level
+|- scripts/                           # Utility scripts moved from root
+|- src/                               # Source-adjacent archived JSON (old notebook export)
+|- phase2-1april/                     # Integrated notebooks, reports, and PCA outputs
+|- week1/                             # Tooth segmentation training assets/scripts
+|- week2/                             # 500-case tooth segmentation batch pipeline
+|- week2-Tooth Detection & Segmentation/  # Large segmentation outputs (~39.37 GB)
+|- week3/                             # Caries-to-tooth mapping (early phase)
+|- week3-Caries-to-Tooth Mapping/     # Mapping output snapshots
+|- week4/                             # Caries detection training/inference pipeline
+|- week5/                             # Surface classification v1
+|- week5-Surface Classification v1/   # Surface classification outputs
+|- week6/                             # Surface classification v2 and evaluation scripts
+|- week7/                             # Hardened evaluation/dashboard workflow
+|- week7-Surface Classification v3/   # v3 outputs and artifacts
+|- week8-Surface Classification v4/   # v4 outputs and artifacts
+|- week9_pca_evaluation/              # PCA evaluation scripts/results
+|- weekphase2/                        # Earlier phase2 notebook variant
+|- _non-using/                        # Legacy/non-active experiments (~15.57 GB)
+|- _organizer-reports/                # Inventory and duplicate analysis CSV/TXT reports
+|- _trash/                            # Non-destructive trash staging (cache artifacts)
+|- _unsorted/                         # Holding area for unknown/backup files pending review
 ```
 
----
+## Key Files
 
-## Technology Stack
+| Path | Purpose |
+|---|---|
+| `phase2-1april/pipeline-phase1-v4.ipynb` | Main integration notebook for phase2 pipeline experimentation |
+| `phase2-1april/report_v4.5.txt` | Evaluation summary for v4.5 zone strategy |
+| `phase2-1april/report_v4.6.txt` | Evaluation summary for v4.6 zone strategy |
+| `week2/process_500_cases.py` | Batch tooth segmentation and recognition over 500 cases |
+| `week4/run_full_batch_v3_advanced.py` | Full caries detection batch runner (advanced settings) |
+| `week5/process_surface_classification.py` | Surface classification batch processing |
+| `week6/evaluation_engine.py` | Evaluation engine used by later weekly iterations |
+| `outputs/diagnostics/tree-filtered-case-removed.txt` | Filtered tree output that suppresses noisy case folders |
+| `_organizer-reports/inventory-all.csv` | Full filesystem inventory generated during organizer phase |
+| `cleanup-log.md` | Action-by-action log of cleanup and restructuring |
 
-| Category | Technologies |
-| :--- | :--- |
-| **Language** | Python 3.10+ |
-| **Object Detection** | [Ultralytics YOLOv8/v11](https://github.com/ultralytics/ultralytics) |
-| **Instance Segmentation** | [Detectron2](https://github.com/facebookresearch/detectron2) |
-| **Point Cloud / PCA** | OpenCV (`cv2.PCACompute`), NumPy |
-| **Visualization** | Matplotlib, Seaborn, OpenCV |
-| **Data Processing** | Pandas, NumPy, tqdm |
-| **GPU** | PyTorch + CUDA (tested on RTX 4080 12GB) |
+## Setup and Usage
 
----
+### 1. Environment setup (Conda recommended)
 
-## Installation
-
-### Prerequisites
-
-- Python 3.10+
-- CUDA-compatible GPU (recommended)
-- Conda (recommended for environment management)
-
-### Setup
-
-```bash
-# Clone the repository
-git clone https://github.com/pichitchaipae/dental-caries-detection.git
-cd dental-caries-detection
-
-# Create conda environment
+```powershell
 conda create -n dental python=3.10 -y
 conda activate dental
-
-# Install dependencies
 pip install -r requirements.txt
-
-# Install Detectron2 (requires PyTorch pre-installed)
-pip install 'git+https://github.com/facebookresearch/detectron2.git'
+pip install "git+https://github.com/facebookresearch/detectron2.git"
 ```
 
----
+Optional week2 dependency file:
 
-## Weekly Development Progress
+```powershell
+pip install -r week2/requirements.txt
+```
 
-| Week | Phase | Description | Key Output |
-| :--- | :--- | :--- | :--- |
-| **1** | Tooth Segmentation Training | Train YOLOv11m-seg on 500 cases (32 FDI classes, 80/20 split) | Tooth segmentation model |
-| **2** | Tooth Segmentation Inference | Run YOLO + Detectron2 two-stage pipeline on all 500 cases | Per-tooth pixel coordinates (JSON) |
-| **3** | Caries-to-Tooth Mapping | Overlay tooth coordinates on binary ROI caries masks | Caries mapping per tooth (JSON + CSV) |
-| **4** | Caries Detection Pipeline | Train YOLOv8s (3-class) + build full inference pipeline | Caries bounding boxes + tooth mapping |
-| **5** | Surface Classification v1 | PCA orientation + OBB zone classification | Surface labels (O/P/L) |
-| **6** | Surface Classification v2 + Evaluation | Multi-Zone M-C-D Point-Cloud Voting + full evaluation | F1=0.89, Surface Acc=87% (baseline) |
-| **7** | Pipeline Hardening | 4-rule PCA fix, boundary erosion, M/D flip fix, soft-match eval, phantom FP elimination | **F1=0.83, Prec=99.1%, Soft Acc=100%** |
+### 2. Typical execution entry points
 
-> **Getting started with Week 7?** See [`week7/README.md`](week7/README.md) for the complete prerequisites checklist, verification script, and step-by-step reproduction guide.
+Tooth segmentation over 500 cases:
 
----
+```powershell
+python week2/process_500_cases.py
+```
 
-## References
+Caries detection full batch (week4 pipeline):
 
-- **FDI Notation:** ISO 3950 — Two-digit tooth numbering system by the World Dental Federation
-- **SNODENT:** Systemized Nomenclature of Dentistry (ADA)
-- **AIM XML:** Annotation and Image Markup (NCI/Northwestern Radiology)
-- **G.V. Black Classification:** Cavity classification system for dental caries
+```powershell
+python week4/run_full_batch_v3_advanced.py
+```
 
----
+Surface classification batch:
 
-## License
+```powershell
+python week5/process_surface_classification.py
+```
 
-This project is developed as part of the ITDS346 PRACTICAL DATA SCIENCE, ITDS491 SENIOR PROJECT I, and ITDS492 SENIOR PROJECT II coursework at the Faculty of ICT, Mahidol University.
+Notebook-based integration workflow:
+- Open `phase2-1april/pipeline-phase1-v4.ipynb`
+- Run cells in order after verifying paths for local data/model directories
+
+## Data
+
+### Data sources present in workspace
+- `data/500 cases with annotation/` (about 1.25 GB): panoramic X-ray images + annotation files grouped per case
+- `data/500-roi/` (about 0.004 GB): ROI masks for caries-related processing
+- `data/Tooth Segmentation + Recognition model/` (about 0.372 GB): pretrained assets and model support files
+
+### Expected format highlights
+- Case folders follow patterns like `case 1`, `case 2`, etc.
+- Per-case image naming commonly follows `case_<id>.png`
+- XML annotations are co-located in case folders
+
+### Storage warning
+Large generated outputs already exist in this workspace (for example `week2-Tooth Detection & Segmentation/` is about 39.37 GB). Keep this in mind before cloning/copying or adding more derived artifacts.
+
+## Results and Output Examples
+
+### v4.5 summary (`phase2-1april/report_v4.5.txt`)
+- Total samples: 1979
+- Accuracy: 0.6741
+- Precision: 0.4815
+- Recall: 0.4555
+- F1 score: 0.4626
+
+### v4.6 summary (`phase2-1april/report_v4.6.txt`)
+- Total samples: 1979
+- Accuracy: 0.5306
+- Precision: 0.5051
+- Recall: 0.4364
+- F1 score: 0.4139
+
+### Main output locations
+- `phase2-1april/PCA_Output_v4.5/`
+- `phase2-1april/PCA_Output_v4.6/`
+- `phase2-1april/caries_mapping_output/`
+- `week7/` and `week7-Surface Classification v3/` evaluation dashboards/results
+
+## Notes and Known Backlog
+
+- Naming conventions are partially standardized for newly moved root files, but historical folder names with spaces were intentionally preserved to avoid breaking existing scripts.
+- `phase2-1april/pipeline-phase1-v3_BACKUP.ipynb` was moved to `_unsorted/pipeline-phase1-v3_backup.ipynb` for manual review.
+- `_organizer-reports/` contains high-volume duplicate/misplacement findings and should be reviewed before any aggressive deduplication.
+- `_trash/` contains moved cache artifacts (`__pycache__` trees) for safety; nothing was permanently deleted.

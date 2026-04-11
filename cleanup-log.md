@@ -1,0 +1,71 @@
+﻿# Cleanup Log
+
+Automated cleanup and organization actions.
+
+- [2026-04-11 22:12:48] create directory: scripts
+- [2026-04-11 22:12:48] create directory: assets
+- [2026-04-11 22:12:48] create directory: outputs
+- [2026-04-11 22:12:48] create directory: src
+- [2026-04-11 22:12:48] create directory: _trash
+- [2026-04-11 22:12:48] create directory: _unsorted
+- [2026-04-11 22:12:48] create directory: outputs\diagnostics
+- [2026-04-11 22:12:48] create directory: outputs\logs
+- [2026-04-11 22:12:48] move: summary_report.log -> outputs\logs\summary-report.log
+- [2026-04-11 22:12:48] move: fix_ipynb2.py -> scripts\fix-ipynb2.py
+- [2026-04-11 22:12:48] move: fix_ipynb4.py -> scripts\fix-ipynb4.py
+- [2026-04-11 22:12:48] move: diff2.txt -> outputs\diagnostics\diff2.txt
+- [2026-04-11 22:12:48] move: fix_ipynb3.py -> scripts\fix-ipynb3.py
+- [2026-04-11 22:12:48] move: __tree_filtered_case_removed.txt -> outputs\diagnostics\tree-filtered-case-removed.txt
+- [2026-04-11 22:12:48] move: fix_print.py -> scripts\fix-print.py
+- [2026-04-11 22:12:48] move: old_cell_source.py -> scripts\old-cell-source.py
+- [2026-04-11 22:12:48] move: logoict.png -> assets\logoict.png
+- [2026-04-11 22:12:48] move: fix_ipynb.py -> scripts\fix-ipynb.py
+- [2026-04-11 22:12:48] move: fix_ipynb_final.py -> scripts\fix-ipynb-final.py
+- [2026-04-11 22:12:48] move: old_notebook.json -> src\old-notebook.json
+- [2026-04-11 22:12:48] move: v45.py -> scripts\v45.py
+- [2026-04-11 22:12:48] move: diff.txt -> outputs\diagnostics\diff.txt
+- [2026-04-11 22:12:50] move junk dir to trash: week5\__pycache__ -> _trash\week5\__pycache__
+- [2026-04-11 22:12:50] move junk dir to trash: week6\__pycache__ -> _trash\week6\__pycache__
+- [2026-04-11 22:12:50] move junk dir to trash: week6-Surface Classification v2\__pycache__ -> _trash\week6-Surface Classification v2\__pycache__
+- [2026-04-11 22:12:50] move junk dir to trash: week7-Surface Classification v3\__pycache__ -> _trash\week7-Surface Classification v3\__pycache__
+- [2026-04-11 22:12:50] move junk dir to trash: week8-Surface Classification v4\__pycache__ -> _trash\week8-Surface Classification v4\__pycache__
+- [2026-04-11 22:12:50] move junk dir to trash: week9_pca_evaluation\__pycache__ -> _trash\week9_pca_evaluation\__pycache__
+- [2026-04-11 22:12:59] remove empty directory: week6-Surface Classification v2
+- [2026-04-11 22:12:59] remove empty directory: _unsorted
+- [2026-04-11 22:12:59] remove empty directory: data\Tooth Segmentation + Recognition model\runs\segment\predict
+- [2026-04-11 22:12:59] remove empty directory: data\Tooth Segmentation + Recognition model\runs\segment\predict2
+- [2026-04-11 22:12:59] remove empty directory: data\Tooth Segmentation + Recognition model\runs\segment\predict3
+- [2026-04-11 22:12:59] remove empty directory: data\Tooth Segmentation + Recognition model\runs\segment\predict4
+- [2026-04-11 22:12:59] remove empty directory: week2-Tooth Detection & Segmentation\runs\segment\predict
+- [2026-04-11 22:12:59] remove empty directory: _non-using\week1\runs\detect\predict
+- [2026-04-11 22:12:59] remove empty directory: _non-using\week1\runs\detect\predict2
+- [2026-04-11 22:12:59] remove empty directory: _non-using\week1\runs\detect\predict3
+- [2026-04-11 22:12:59] remove empty directory: _non-using\week1\runs\detect\predict4
+- [2026-04-11 22:12:59] remove empty directory: _non-using\week1\runs\segment\predict
+- [2026-04-11 22:13:48] create directory: _unsorted
+- [2026-04-11 22:13:58] remove empty directory: _unsorted
+- [2026-04-11 22:13:58] remove empty directory: data\Tooth Segmentation + Recognition model\runs\segment
+- [2026-04-11 22:13:58] remove empty directory: week2-Tooth Detection & Segmentation\runs\segment
+- [2026-04-11 22:13:58] remove empty directory: _non-using\week1\runs\detect
+- [2026-04-11 22:15:09] restore directory: _unsorted
+- [2026-04-11 22:15:09] restore directory: week6-Surface Classification v2
+- [2026-04-11 22:15:09] phase1 summary: generated inventory, duplicate, generic-name, empty-folder, misplaced-file, and tree reports under _organizer-reports
+- [2026-04-11 22:15:09] phase3 summary: rewrote README.md with updated structure, setup, data, and evaluation sections based on current workspace state
+- [2026-04-11 22:15:58] rename: scripts\fix-ipynb2.py -> scripts\fix_ipynb2.py
+- [2026-04-11 22:15:58] rename: scripts\old-cell-source.py -> scripts\old_cell_source.py
+- [2026-04-11 22:15:58] rename: scripts\fix-ipynb.py -> scripts\fix_ipynb.py
+- [2026-04-11 22:15:58] rename: scripts\fix-ipynb-final.py -> scripts\fix_ipynb_final.py
+- [2026-04-11 22:15:58] rename: scripts\fix-ipynb4.py -> scripts\fix_ipynb4.py
+- [2026-04-11 22:15:58] rename: scripts\fix-print.py -> scripts\fix_print.py
+- [2026-04-11 22:15:58] rename: scripts\fix-ipynb3.py -> scripts\fix_ipynb3.py
+- [2026-04-11 22:15:58] move and rename: phase2-1april\_fix_fmt.py -> scripts\fix_fmt_phase2.py
+- [2026-04-11 22:15:58] rename: week5\caries_surface_classifier copy.py -> week5\caries_surface_classifier_copy.py
+- [2026-04-11 22:15:58] rename: week6\_test_mz_refined.py -> week6\test_mz_refined.py
+- [2026-04-11 22:15:58] move backup to unsorted: phase2-1april\pipeline-phase1-v3_BACKUP.ipynb -> _unsorted\pipeline-phase1-v3_backup.ipynb
+- [2026-04-11 22:16:28] rename: scripts\fix_ipynb_final.py -> scripts\fix_ipynb_patch.py
+- [2026-04-11 22:16:47] phase4 qa summary: root junk files=0, pycache outside _trash=0, pyc outside _trash=0, unknown backup moved to _unsorted, README updated to final structure
+- [2026-04-11 22:16:47] phase4 note: retained week7/run_test_sample.py as intentional test utility (not treated as junk)
+- [2026-04-11 22:17:21] update: week6/note.txt reference _test_mz_refined.py -> test_mz_refined.py
+- [2026-04-11 22:17:21] update: README.md folder tree and backlog note to reflect _unsorted backup location
+- [2026-04-11 22:17:21] phase4 qa rerun complete: remaining flagged names are intentional test utility and _unsorted backup
+- [2026-04-11 22:17:55] phase2 summary: moved 6 __pycache__ directories into _trash; reorganized root utility files into scripts/assets/outputs/src; removed empty folders and restored key top-level placeholders
