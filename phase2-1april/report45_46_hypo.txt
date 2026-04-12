@@ -1,0 +1,62 @@
+
+========== FINAL EVALUATION [v4.5] ==========
+Total Samples : 1979
+Accuracy      : 0.7054
+Precision     : 0.5463
+Recall        : 0.4645
+F1 Score      : 0.4714
+
+Confusion Matrix:
+          Occlusal  Mesial  Distal  Other
+Occlusal        78     121     152     37
+Mesial           5     555      80     30
+Distal          31      80     763     47
+Other            0       0       0      0
+
+Classification Report:
+              precision    recall  f1-score   support
+
+    Occlusal       0.68      0.20      0.31       388
+      Mesial       0.73      0.83      0.78       670
+      Distal       0.77      0.83      0.80       921
+       Other       0.00      0.00      0.00         0
+
+    accuracy                           0.71      1979
+   macro avg       0.55      0.46      0.47      1979
+weighted avg       0.74      0.71      0.70      1979
+
+
+========== FINAL EVALUATION [v4.6] ==========
+Total Samples : 1979
+Accuracy      : 0.6028
+Precision     : 0.5131
+Recall        : 0.4634
+F1 Score      : 0.4601
+
+Confusion Matrix:
+          Occlusal  Mesial  Distal  Other
+Occlusal       269      43      39     37
+Mesial         211     386      43     30
+Distal         307      29     538     47
+Other            0       0       0      0
+
+Classification Report:
+              precision    recall  f1-score   support
+
+    Occlusal       0.34      0.69      0.46       388
+      Mesial       0.84      0.58      0.68       670
+      Distal       0.87      0.58      0.70       921
+       Other       0.00      0.00      0.00         0
+
+    accuracy                           0.60      1979
+   macro avg       0.51      0.46      0.46      1979
+weighted avg       0.76      0.60      0.65      1979
+
+
+========== HYPOTHESIS TESTING ==========
+F1 v4.5       : 0.4714
+F1 v4.6       : 0.4601
+Observed Diff : 0.0113
+P-value       : 0.5280
+95% CI        : [-0.0091, 0.0307]
+RESULT: No significant difference
