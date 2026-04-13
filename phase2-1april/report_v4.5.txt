@@ -1,14 +1,14 @@
 ========== FINAL EVALUATION [v4.5] ==========
 Output Dir    : PCA_Output_v4.5
 Total Samples : 1979
-Accuracy      : 0.7049
-Precision     : 0.5454
-Recall        : 0.4638
-F1 Score      : 0.4705
+Accuracy      : 0.7054
+Precision     : 0.5463
+Recall        : 0.4645
+F1 Score      : 0.4714
 
 ========== CONFUSION MATRIX [v4.5] ==========
           Occlusal  Mesial  Distal  Other
-Occlusal        77     121     153     37
+Occlusal        78     121     152     37
 Mesial           5     555      80     30
 Distal          31      80     763     47
 Other            0       0       0      0
@@ -21,7 +21,7 @@ Other            0       0       0      0
       Distal       0.77      0.83      0.80       921
        Other       0.00      0.00      0.00         0
 
-    accuracy                           0.70      1979
+    accuracy                           0.71      1979
    macro avg       0.55      0.46      0.47      1979
-weighted avg       0.74      0.70      0.69      1979
+weighted avg       0.74      0.71      0.70      1979
 
