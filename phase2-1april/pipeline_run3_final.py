@@ -21,11 +21,16 @@ Steps:
 # =========================================================
 import os
 import sys
+import gc
 import json
+import logging
 import math
 import warnings
 import xml.etree.ElementTree as ET
+from collections import defaultdict
 from pathlib import Path
+
+import ijson
 
 import cv2
 import joblib
@@ -36,6 +41,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+from sklearn.cluster import DBSCAN
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import GroupShuffleSplit
 from sklearn.metrics import (
@@ -51,6 +57,14 @@ from sklearn.metrics import (
 # =========================================================
 # Constants
 # =========================================================
+
+# ---- Logging ----
+logger = logging.getLogger("pipeline_run3")
+logger.setLevel(logging.INFO)
+if not logger.handlers:
+    _handler = logging.StreamHandler(sys.stdout)
+    _handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
+    logger.addHandler(_handler)
 
 FEATURE_COLS = [
     "is_upper", "x_mean", "y_mean", "x_std", "y_std",
@@ -73,6 +87,9 @@ LEFT_BOUND = 0.40
 
 RIGHT_BOUND = 0.60
 """X-thirds right boundary (0.60 - 1.00 = right zone)."""
+
+MAX_FILE_SIZE_MB = 500
+"""Skip JSON files larger than this threshold (megabytes) to prevent OOM."""
 
 
 # =========================================================
@@ -282,49 +299,138 @@ def get_quadrant(tooth_id):
 
 def get_bbox(pts):
     """Compute the axis-aligned bounding box: (x_min, y_min, width, height)."""
-    p = np.array(pts, dtype=np.float64)
+    # [OPT] asarray + float32: avoids copy if already float32 ndarray;
+    #        halves memory vs float64 for large coordinate arrays.
+    p = np.asarray(pts, dtype=np.float32)
     bbox_min, bbox_max = np.min(p, 0), np.max(p, 0)
     return bbox_min[0], bbox_min[1], bbox_max[0] - bbox_min[0], bbox_max[1] - bbox_min[1]
 
 
 def rotate(pts, center, angle):
     """Rotate 2D points around a centre by a given angle (radians)."""
-    p = np.array(pts, dtype=np.float64) - center
+    # [OPT] float32 throughout: halves memory for large arrays.
+    #        np.asarray avoids copy when pts is already float32.
+    p = np.asarray(pts, dtype=np.float32) - np.asarray(center, dtype=np.float32)
     c, s = np.cos(angle), np.sin(angle)
-    return np.dot(p, np.array([[c, -s], [s, c]]).T) + center
+    rot = np.array([[c, -s], [s, c]], dtype=np.float32)
+    return p @ rot.T + np.asarray(center, dtype=np.float32)
 
 
-def remove_small_clusters(caries_pts, min_cluster=MIN_CLUSTER_SIZE):
+def split_caries_into_lesions(caries_pts, min_cluster=MIN_CLUSTER_SIZE):
     """
-    Remove noise from caries points by discarding small connected components.
+    [FIXED] DBSCAN Clustering สำหรับ Pixel Grid
+    ใช้ min_samples=1 เพื่อให้จุดที่ติดกัน (ระยะ eps=2.0) เชื่อมเป็นก้อนเดียวกัน
+    แล้วค่อยกรองขนาดก้อนขั้นต่ำ (min_cluster) ทีหลัง
 
     Args:
         caries_pts (list or np.ndarray): Nx2 caries pixel coordinates.
         min_cluster (int): Minimum cluster size to keep.
 
     Returns:
-        np.ndarray: Filtered caries points.
+        list[np.ndarray]: List of float32 numpy arrays, one per lesion cluster.
     """
     if len(caries_pts) < min_cluster:
-        return caries_pts
-    pts = np.array(caries_pts, dtype=np.int32)
-    x_min, y_min = pts.min(axis=0)
-    x_max, y_max = pts.max(axis=0)
-    pad = 2
-    w = x_max - x_min + 1 + 2 * pad
-    h = y_max - y_min + 1 + 2 * pad
-    mask = np.zeros((h, w), dtype=np.uint8)
-    shifted = pts - np.array([x_min - pad, y_min - pad])
-    mask[shifted[:, 1], shifted[:, 0]] = 255
-    n_labels, labels, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=8)
-    keep = np.zeros_like(mask)
-    for lbl in range(1, n_labels):
-        if stats[lbl, cv2.CC_STAT_AREA] >= min_cluster:
-            keep[labels == lbl] = 255
-    ys, xs = np.where(keep > 0)
-    if len(xs) == 0:
-        return caries_pts
-    return np.column_stack([xs + x_min - pad, ys + y_min - pad]).astype(np.float64)
+        return []
+
+    # [OPT] float32 instead of float64 — halves DBSCAN working memory.
+    #        Pixel coordinates are integers; float32 has more than enough precision.
+    pts = np.asarray(caries_pts, dtype=np.float32)
+
+    # 🌟 แก้ไข: min_samples=1 เพื่อให้กวาดจุดที่ติดกัน (ระยะ 2.0) เป็นก้อนเดียวกันทั้งหมด
+    # บน Pixel Grid รัศมี 2.0 มีเพื่อนบ้านได้สูงสุด ~13 จุด
+    # ดังนั้น min_samples=15 จึงเป็นไปไม่ได้ ต้องใช้ 1 แล้วกรองขนาดทีหลัง
+    clustering = DBSCAN(eps=2.0, min_samples=1).fit(pts)
+    # [OPT] Copy labels and free DBSCAN internals (KDTree, core_sample_indices, etc.)
+    labels = clustering.labels_.copy()
+    del clustering
+    gc.collect()
+
+    lesions = []
+    for lbl in set(labels):
+        if lbl == -1:
+            continue  # ข้าม Noise (ซึ่งตอนนี้แทบไม่มีแล้วเพราะ min_samples=1)
+
+        lesion_pts = pts[labels == lbl]
+
+        # 🌟 นำมากรองขนาดก้อนขั้นต่ำ (min_cluster พิกเซล) ตรงนี้แทน
+        if len(lesion_pts) >= min_cluster:
+            # [OPT] Keep as float32 ndarray — avoids .tolist() → Python list overhead.
+            #        Boolean fancy indexing already creates a copy, so no dangling reference.
+            lesions.append(lesion_pts)
+
+    # [OPT] Free the full pts array and labels now that lesions are extracted.
+    del pts, labels
+    return lesions
+
+
+def remove_small_clusters(caries_pts, min_cluster=MIN_CLUSTER_SIZE):
+    """
+    ฟังก์ชันทำความสะอาดจุดกวนใจขนาดเล็ก (DRY Principle)
+    """
+    lesions = split_caries_into_lesions(caries_pts, min_cluster)
+
+    if not lesions:
+        # [OPT] Return as float32 ndarray instead of keeping as Python list.
+        return np.asarray(caries_pts, dtype=np.float32)  # Fallback กันเหนียว
+
+    valid_pts = np.vstack(lesions)
+    # [OPT] Already float32 from split_caries_into_lesions; no dtype conversion needed.
+    del lesions
+    return valid_pts
+
+
+def _get_lesion_zone(tooth_id, tooth_pts, lesion_pts, pca_cache=None):
+    """
+    Determine which surface zone a single lesion belongs to.
+
+    Uses PCA-aligned relative X-coordinate of the lesion centroid
+    to assign it to Mesial, Occlusal, or Distal (quadrant-aware).
+
+    Args:
+        tooth_id (str): FDI tooth identifier.
+        tooth_pts (list or np.ndarray): Tooth mask pixel coordinates.
+        lesion_pts (list or np.ndarray): Lesion region pixel coordinates.
+        pca_cache (tuple, optional): Pre-computed (center, angle, tooth_rot)
+            to avoid redundant PCA. [OPT] Reuse from caller.
+
+    Returns:
+        str: 'Mesial', 'Occlusal', 'Distal', or 'Other'.
+    """
+    try:
+        # [OPT] Reuse cached PCA if available — avoids re-computing PCA
+        #        on the same tooth mask for every lesion.
+        if pca_cache is not None:
+            center, angle, tooth_rot = pca_cache
+        else:
+            center, angle, _ = perform_pca(tooth_pts, tooth_id)
+            tooth_rot = rotate(tooth_pts, center, angle)
+
+        lesion_rot = rotate(lesion_pts, center, angle)
+
+        bbox_x, _, w, _ = get_bbox(tooth_rot)
+        if w <= 0:
+            return "Other"
+
+        lesion_x_center = np.mean(lesion_rot[:, 0])
+        rel_x = (lesion_x_center - bbox_x) / w
+
+        quadrant = get_quadrant(tooth_id)
+        if quadrant in [1, 4]:
+            if rel_x < LEFT_BOUND:
+                return "Distal"
+            elif rel_x > RIGHT_BOUND:
+                return "Mesial"
+            else:
+                return "Occlusal"
+        else:
+            if rel_x < LEFT_BOUND:
+                return "Mesial"
+            elif rel_x > RIGHT_BOUND:
+                return "Distal"
+            else:
+                return "Occlusal"
+    except Exception:
+        return "Other"
 
 
 def perform_pca(points, tooth_id):
@@ -338,11 +444,16 @@ def perform_pca(points, tooth_id):
     Returns:
         tuple: (mean_center, rotation_angle_rad, was_clamped).
     """
-    pts = np.array(points, dtype=np.float64).reshape(-1, 2)
+    # [OPT] float32 for PCA: cv2.PCACompute requires float32 anyway,
+    #        so we avoid the double conversion (float64 → float32) from original code.
+    #        np.asarray avoids copy if already float32.
+    pts = np.asarray(points, dtype=np.float32).reshape(-1, 2)
     mean = np.mean(pts, axis=0)
     centered = pts - mean
 
-    _, eigvecs = cv2.PCACompute(centered.astype(np.float32), mean=None)
+    # [OPT] Already float32 — no .astype(np.float32) conversion needed.
+    _, eigvecs = cv2.PCACompute(centered, mean=None)
+    # Eigenvectors are 2-element arrays — negligible memory; use float64 for trig precision.
     primary_eigenvector = eigvecs[0].astype(np.float64)
     secondary_eigenvector = eigvecs[1].astype(np.float64)
 
@@ -390,64 +501,299 @@ def perform_pca(points, tooth_id):
     return mean, rotation_angle, clamped
 
 
-def build_seg_map(seg_data):
-    """Build tooth_id -> pixel_coordinates mapping from segmentation JSON."""
-    return {
-        str(t["tooth_id"]): t.get("pixel_coordinates", [])
-        for t in seg_data.get("teeth_data", [])
-    }
-
-
 # =========================================================
-# File I/O
+# File I/O — Streaming / OOM-Safe
 # =========================================================
 
-def _load_json_file(path):
-    """Load JSON file, return None if missing."""
+def _check_file_size(path, label=""):
+    """
+    File size guard (Anomaly Detection).
+
+    Returns True if the file is within the acceptable size limit,
+    False if it should be skipped.
+
+    Args:
+        path (Path): File path to check.
+        label (str): Human-readable label for logging.
+
+    Returns:
+        bool: True if safe to proceed, False to skip.
+    """
+    try:
+        size_bytes = os.path.getsize(path)
+        size_mb = size_bytes / (1024 * 1024)
+        if size_mb > MAX_FILE_SIZE_MB:
+            logger.warning(
+                "Skipping %s: File size %.1fGB exceeds threshold %dMB — "
+                "probable corrupted/anomalous file.",
+                label or path.name,
+                size_mb / 1024,
+                MAX_FILE_SIZE_MB,
+            )
+            return False
+        return True
+    except OSError as e:
+        logger.warning("Cannot stat %s: %s", path, e)
+        return False
+
+
+def _stream_json_items(path, prefix, label=""):
+    """
+    Iterative/Stream JSON parser — O(1) space complexity.
+
+    Uses ``ijson.items`` to yield individual objects matched by *prefix*
+    one at a time instead of loading the entire JSON tree into memory.
+
+    Args:
+        path (Path): Path to the JSON file.
+        prefix (str): ijson prefix pattern (e.g. 'teeth_data.item').
+        label (str): Label for log messages.
+
+    Yields:
+        dict: Individual JSON objects matching the prefix.
+
+    Returns:
+        None (generator is exhausted, or yields nothing on error).
+    """
+    if not path.exists():
+        return
+
+    # ---- File Size Guard ----
+    if not _check_file_size(path, label):
+        return
+
+    try:
+        with open(path, "rb") as f:
+            for item in ijson.items(f, prefix):
+                yield item
+    except MemoryError:
+        logger.error(
+            "MemoryError while streaming %s — forcing gc.collect() and skipping.",
+            label or path.name,
+        )
+        gc.collect()
+        return
+    except (ValueError, ijson.JSONError) as e:
+        logger.error(
+            "JSON decode error in %s: %s — skipping.",
+            label or path.name, e,
+        )
+        gc.collect()
+        return
+    except Exception as e:
+        logger.error(
+            "Unexpected error streaming %s: %s — skipping.",
+            label or path.name, e,
+        )
+        gc.collect()
+        return
+
+
+def _load_json_file(path, label=""):
+    """
+    OOM-safe JSON file loader with graceful degradation (FALLBACK ONLY).
+
+    Used as a fallback when ijson streaming yields nothing (e.g. the JSON
+    structure doesn't match the expected prefix).  Returns None on any
+    failure so the pipeline can continue to the next case.
+
+    Args:
+        path (Path): File path.
+        label (str): Human-readable label for logging.
+
+    Returns:
+        dict or None: Parsed JSON object, or None on failure.
+    """
     if not path.exists():
         return None
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+
+    # ---- File Size Guard ----
+    if not _check_file_size(path, label):
+        return None
+
+    try:
+        with open(path, "rb") as f:
+            return json.load(f)
+    except MemoryError:
+        logger.error(
+            "MemoryError loading %s — forcing gc.collect() and returning None.",
+            label or path.name,
+        )
+        gc.collect()
+        return None
+    except (json.JSONDecodeError, ValueError) as e:
+        logger.error(
+            "JSON decode error in %s: %s — skipping.",
+            label or path.name, e,
+        )
+        gc.collect()
+        return None
+    except Exception as e:
+        logger.error(
+            "Unexpected error loading %s: %s — skipping.",
+            label or path.name, e,
+        )
+        gc.collect()
+        return None
 
 
-def _load_seg_case(case_id):
-    """Load segmentation JSON for a single case."""
-    return _load_json_file(SEG_DIR / f"case {case_id}" / f"case_{case_id}_results.json")
+# ---------------------------------------------------------
+# [OPT] TRUE STREAMING LOADERS — replace _load_seg_case / _load_caries_case
+#
+# The original code used  list(_stream_json_items(...))  which defeated
+# the purpose of ijson by materializing ALL teeth into a single Python
+# list (~200MB+ per 80MB JSON file).
+#
+# New approach:
+#   _build_seg_map_streaming  → streams teeth one-by-one, converts each
+#       tooth's pixel_coordinates to a compact np.float32 array immediately,
+#       discards the raw JSON dict.  Returns {tooth_id: np.float32 array}.
+#   _stream_caries_teeth      → yields caries tooth dicts one-by-one
+#       so the caller processes and discards each before the next is parsed.
+# ---------------------------------------------------------
+
+def _build_seg_map_streaming(case_id):
+    """
+    [OPT] TRUE streaming seg_map builder — O(1) peak memory per tooth.
+
+    Streams teeth one-by-one via ijson.  For each tooth, extracts
+    ``tooth_id`` and ``pixel_coordinates`` as a compact np.float32 array,
+    then immediately discards the raw JSON dict.
+
+    Only the final ``{tooth_id: np.float32_array}`` map is retained,
+    which is ~10× smaller than the equivalent Python-list representation.
+
+    Args:
+        case_id (int): Case number.
+
+    Returns:
+        dict or None: {tooth_id_str: np.float32 Nx2 array}, or None on failure.
+    """
+    path = SEG_DIR / f"case {case_id}" / f"case_{case_id}_results.json"
+    label = f"seg case {case_id}"
+
+    if not path.exists():
+        return None
+    if not _check_file_size(path, label):
+        return None
+
+    seg_map = {}
+    tooth_count = 0
+
+    # [OPT] Stream one tooth at a time — only ONE parsed dict in memory at any moment.
+    for tooth_dict in _stream_json_items(path, "teeth_data.item", label):
+        tooth_count += 1
+        tid = str(tooth_dict.get("tooth_id", ""))
+        coords = tooth_dict.get("pixel_coordinates", [])
+        if tid and coords:
+            # [OPT] Convert to float32 ndarray immediately — discards nested Python lists.
+            #        np.array on a list-of-[x,y] creates a contiguous Nx2 array.
+            seg_map[tid] = np.array(coords, dtype=np.float32)
+        # tooth_dict goes out of scope here → eligible for GC.
+
+    if tooth_count == 0:
+        # [OPT] Streaming yielded nothing — JSON structure might differ; fallback.
+        logger.debug("Streaming yielded 0 teeth for %s — trying full load fallback.", label)
+        data = _load_json_file(path, label)
+        if data is None:
+            return None
+        for t in data.get("teeth_data", []):
+            tid = str(t.get("tooth_id", ""))
+            coords = t.get("pixel_coordinates", [])
+            if tid and coords:
+                seg_map[tid] = np.array(coords, dtype=np.float32)
+        del data
+        gc.collect()
+
+    return seg_map if seg_map else None
 
 
-def _load_caries_case(case_id):
-    """Load caries mapping JSON for a single case."""
-    return _load_json_file(CARIES_DIR / f"case {case_id}" / f"case_{case_id}_caries_mapping.json")
+def _stream_caries_teeth(case_id):
+    """
+    [OPT] TRUE streaming caries tooth generator — yields one tooth at a time.
+
+    Each tooth dict is yielded to the caller, which processes it and lets
+    it go out of scope before the next tooth is parsed from disk.
+
+    Falls back to full JSON load if ijson streaming produces nothing
+    (e.g. different JSON structure).
+
+    Args:
+        case_id (int): Case number.
+
+    Yields:
+        dict: Individual tooth-caries objects with 'tooth_id',
+              'caries_coordinates', 'confidence', etc.
+    """
+    path = CARIES_DIR / f"case {case_id}" / f"case_{case_id}_caries_mapping.json"
+    label = f"caries case {case_id}"
+
+    if not path.exists():
+        return
+    if not _check_file_size(path, label):
+        return
+
+    tooth_count = 0
+    for tooth_dict in _stream_json_items(path, "teeth_caries_data.item", label):
+        tooth_count += 1
+        yield tooth_dict
+
+    if tooth_count == 0:
+        # [OPT] Streaming yielded nothing; fallback to full load.
+        data = _load_json_file(path, label)
+        if data is not None:
+            for tooth_dict in data.get("teeth_caries_data", []):
+                yield tooth_dict
+            del data
+            gc.collect()
 
 
 # =========================================================
 # Feature Extraction
 # =========================================================
 
-def _extract_ml_feature_dict(tooth_id, tooth_pts, caries_pts):
+def _extract_ml_feature_dict(tooth_id, tooth_pts, caries_pts,
+                             pca_cache=None, skip_clean=False):
     """
     Extract 13 geometric features for one caries-tooth pair.
 
     Args:
         tooth_id (str): FDI tooth identifier.
-        tooth_pts (list): Tooth mask pixel coordinates.
-        caries_pts (list): Caries region pixel coordinates.
+        tooth_pts (list or np.ndarray): Tooth mask pixel coordinates.
+        caries_pts (list or np.ndarray): Caries region pixel coordinates.
+        pca_cache (tuple, optional): Pre-computed (center, angle, tooth_rot).
+            [OPT] Avoids redundant PCA computation per lesion.
+        skip_clean (bool): If True, skip DBSCAN cleaning (caller already
+            provided clean lesion points). [OPT] Avoids redundant DBSCAN.
 
     Returns:
         dict or None: Feature dictionary keyed by FEATURE_COLS names.
     """
-    caries_clean = remove_small_clusters(caries_pts)
+    # [OPT] skip_clean=True when caries_pts are already from split_caries_into_lesions
+    #        — avoids running DBSCAN again on already-clustered points.
+    if skip_clean:
+        caries_clean = np.asarray(caries_pts, dtype=np.float32)
+    else:
+        caries_clean = remove_small_clusters(caries_pts)
+
     if len(caries_clean) == 0:
         return None
 
-    center, angle, _ = perform_pca(tooth_pts, tooth_id)
-    tooth_rot = rotate(tooth_pts, center, angle)
+    # [OPT] Reuse cached PCA results if available — avoids re-computing
+    #        PCA + rotation on the same tooth mask for every lesion.
+    if pca_cache is not None:
+        center, angle, tooth_rot = pca_cache
+    else:
+        center, angle, _ = perform_pca(tooth_pts, tooth_id)
+        tooth_rot = rotate(tooth_pts, center, angle)
+
     caries_rot = rotate(caries_clean, center, angle)
 
     bbox_x, bbox_y, w, h = get_bbox(tooth_rot)
     if w <= 0 or h <= 0:
         return None
 
+    # [OPT] Compute relative coordinates in float32.
     x_rel = np.clip((caries_rot[:, 0] - bbox_x) / w, 0.0, 1.0)
     y_rel = np.clip((caries_rot[:, 1] - bbox_y) / h, 0.0, 1.0)
 
@@ -474,59 +820,152 @@ def _extract_ml_feature_dict(tooth_id, tooth_pts, caries_pts):
 
 def create_ml_dataset(case_ids):
     """
-    Build a labelled ML dataset by extracting features from all cases.
+    Build a labelled ML dataset by extracting **per-lesion** features.
+
+    Each caries region is split into individual lesion clusters via
+    Connected Components.  Each lesion is matched to a ground-truth
+    surface label using its PCA-aligned zone position.
+
+    [OPT] Major architectural changes vs original:
+      - GT and caries file existence checked BEFORE building expensive seg_map.
+      - Seg data streamed via ijson (never list()-wrapped).
+      - Caries data streamed one tooth at a time.
+      - PCA computed ONCE per tooth, cached and reused for all lesions.
+      - DBSCAN not re-run on already-clustered lesion points.
+      - Aggressive del + gc.collect() after each case.
+      - Final DataFrame uses float32 + category dtypes.
 
     Args:
         case_ids (list[int]): Case identifiers to process.
 
     Returns:
-        pd.DataFrame: Dataset with ['case_id', 'tooth_id', *FEATURE_COLS, 'label'].
+        pd.DataFrame: Dataset with
+            ['case_id', 'tooth_id', 'lesion_idx', *FEATURE_COLS, 'label'].
     """
     dataset_rows = []
     total = len(case_ids)
-    print(f"[RUNNING] Step 1: สกัด Features จากข้อมูล {total} เคส...", flush=True)
+    print(f"[RUNNING] Step 1: Multi-Lesion feature extraction ({total} cases)...",
+          flush=True)
 
     for i, case_id in enumerate(case_ids):
-        _progress_bar(i + 1, total, "Step 1: สกัด Features")
+        _progress_bar(i + 1, total, "Step 1: Features (Multi-Lesion)")
 
-        seg_data = _load_seg_case(case_id)
-        caries_data = _load_caries_case(case_id)
+        # [OPT] Check GT folder first — cheapest check, avoids expensive I/O.
         gt_folder = GT_ROOT / f"case {case_id}"
-
-        if seg_data is None or caries_data is None or not gt_folder.exists():
+        if not gt_folder.exists():
             continue
 
         ground_truth_list = parse_case_ground_truth(gt_folder)
-        ground_truth_lookup = {str(item["tooth"]): item["surface"] for item in ground_truth_list}
-        if not ground_truth_lookup:
+
+        # Multi-value GT lookup: one tooth can have multiple surfaces.
+        gt_lookup = defaultdict(list)
+        for item in ground_truth_list:
+            gt_lookup[str(item["tooth"])].append(item["surface"])
+        if not gt_lookup:
+            del ground_truth_list
             continue
 
-        segmentation_map = build_seg_map(seg_data)
-        for tooth in caries_data.get("teeth_caries_data", []):
+        # [OPT] Check caries file existence before building expensive seg_map.
+        caries_path = CARIES_DIR / f"case {case_id}" / f"case_{case_id}_caries_mapping.json"
+        if not caries_path.exists():
+            del ground_truth_list, gt_lookup
+            continue
+
+        # [OPT] TRUE streaming seg_map: parse 80MB JSON incrementally,
+        #        store only compact float32 numpy arrays per tooth.
+        segmentation_map = _build_seg_map_streaming(case_id)
+        if segmentation_map is None:
+            del ground_truth_list, gt_lookup
+            continue
+
+        # [OPT] Stream caries teeth one-by-one — only one tooth dict in memory.
+        for tooth in _stream_caries_teeth(case_id):
             tooth_id = str(tooth.get("tooth_id", ""))
-            if tooth_id not in ground_truth_lookup:
+            if tooth_id not in gt_lookup:
                 continue
 
-            tooth_pts = segmentation_map.get(tooth_id, [])
+            tooth_pts = segmentation_map.get(tooth_id)
+            if tooth_pts is None or len(tooth_pts) < 10:
+                continue
+
             caries_pts = tooth.get("caries_coordinates", [])
-            if len(caries_pts) == 0 or len(tooth_pts) < 10:
+            if len(caries_pts) == 0:
                 continue
 
-            features = _extract_ml_feature_dict(tooth_id, tooth_pts, caries_pts)
-            if features is None:
+            # Split caries into individual lesion clusters.
+            lesions = split_caries_into_lesions(caries_pts)
+            if not lesions:
                 continue
 
-            dataset_rows.append({
-                "case_id": int(case_id),
-                "tooth_id": tooth_id,
-                **features,
-                "label": ground_truth_lookup[tooth_id],
-            })
+            # [OPT] PCA CACHE: compute PCA + rotation ONCE per tooth,
+            #        reuse for ALL lesions on this tooth.
+            #        Original code computed PCA inside _get_lesion_zone AND
+            #        _extract_ml_feature_dict — 2× per lesion = 6× for 3 lesions.
+            #        Now: 1× total per tooth regardless of lesion count.
+            try:
+                center, angle, _ = perform_pca(tooth_pts, tooth_id)
+                tooth_rot = rotate(tooth_pts, center, angle)
+                pca_cache = (center, angle, tooth_rot)
+            except Exception:
+                continue
 
-    columns = ["case_id", "tooth_id", *FEATURE_COLS, "label"]
+            # Copy GT surfaces so we can consume them during matching.
+            gt_surfaces = gt_lookup[tooth_id].copy()
+
+            for lesion_idx, lesion_pts in enumerate(lesions):
+                zone = _get_lesion_zone(
+                    tooth_id, tooth_pts, lesion_pts, pca_cache=pca_cache,
+                )
+
+                # Match lesion zone to a GT surface.
+                if zone in gt_surfaces:
+                    label = zone
+                    gt_surfaces.remove(zone)  # consume matched GT
+                elif gt_surfaces:
+                    label = gt_surfaces.pop(0)  # greedy fallback
+                else:
+                    continue  # no GT left to pair with
+
+                # [OPT] skip_clean=True: lesion_pts are already clean from DBSCAN.
+                features = _extract_ml_feature_dict(
+                    tooth_id, tooth_pts, lesion_pts,
+                    pca_cache=pca_cache, skip_clean=True,
+                )
+                if features is None:
+                    continue
+
+                dataset_rows.append({
+                    "case_id": int(case_id),
+                    "tooth_id": tooth_id,
+                    "lesion_idx": lesion_idx,
+                    **features,
+                    "label": label,
+                })
+
+            # [OPT] Free per-tooth heavy objects.
+            del lesions, pca_cache, tooth_rot
+
+        # [OPT] Aggressively free ALL case-level objects before next iteration.
+        #        This prevents memory from accumulating across 500 cases.
+        del segmentation_map, ground_truth_list, gt_lookup
+        gc.collect()
+
+    columns = ["case_id", "tooth_id", "lesion_idx", *FEATURE_COLS, "label"]
     feature_dataframe = pd.DataFrame(dataset_rows, columns=columns)
+
+    # [OPT] Downcast DataFrame dtypes — float64→float32 halves memory;
+    #        category encoding drastically reduces string column memory.
     if not feature_dataframe.empty:
         feature_dataframe = feature_dataframe[columns]
+        for col in FEATURE_COLS:
+            feature_dataframe[col] = feature_dataframe[col].astype(np.float32)
+        feature_dataframe["label"] = feature_dataframe["label"].astype("category")
+        feature_dataframe["tooth_id"] = feature_dataframe["tooth_id"].astype("category")
+
+    # [OPT] Free the raw list-of-dicts now that DataFrame is built.
+    del dataset_rows
+    gc.collect()
+
     return feature_dataframe
 
 
@@ -564,6 +1003,11 @@ def train_classify_ml(feature_dataframe):
     rf_model = model
     joblib.dump(rf_model, str(MODEL_PATH))
     print(f"Saved model to {MODEL_PATH}")
+
+    # [OPT] Free training split — model internals don't reference the DataFrame.
+    del train_dataframe
+    gc.collect()
+
     return model, test_dataframe, FEATURE_COLS
 
 
@@ -571,19 +1015,26 @@ def train_classify_ml(feature_dataframe):
 # Baseline Classifier (Smart Fallback target)
 # =========================================================
 
-def classify_xthird(tooth_id, tooth_pts, caries_pts):
+def classify_xthird(tooth_id, tooth_pts, caries_pts, pre_cleaned=False):
     """
     Baseline X-Thirds classifier (v4.5 dominant zone).
 
     Args:
         tooth_id (str): FDI tooth identifier.
-        tooth_pts (list): Tooth mask pixel coordinates.
-        caries_pts (list): Caries region pixel coordinates.
+        tooth_pts (list or np.ndarray): Tooth mask pixel coordinates.
+        caries_pts (list or np.ndarray): Caries region pixel coordinates.
+        pre_cleaned (bool): If True, skip DBSCAN cleaning.
+            [OPT] Avoids redundant DBSCAN when lesion is already clustered.
 
     Returns:
         tuple: (surface, angle_deg, vote_fractions).
     """
-    caries_clean = remove_small_clusters(caries_pts)
+    # [OPT] Skip redundant DBSCAN when caller provides pre-cleaned lesion points.
+    if pre_cleaned:
+        caries_clean = np.asarray(caries_pts, dtype=np.float32)
+    else:
+        caries_clean = remove_small_clusters(caries_pts)
+
     if len(caries_clean) == 0:
         return "Other", 0.0, {}
 
@@ -620,22 +1071,28 @@ def classify_xthird(tooth_id, tooth_pts, caries_pts):
 # Smart Fallback Classifier
 # =========================================================
 
-def classify_ml(tooth_id, tooth_pts, caries_pts):
+def classify_ml(tooth_id, tooth_pts, caries_pts, pre_cleaned=False):
     """
     Classify using RF predict_proba with Smart Fallback to X-Thirds.
 
     Args:
         tooth_id (str): FDI tooth identifier.
-        tooth_pts (list): Tooth mask pixel coordinates.
-        caries_pts (list): Caries region pixel coordinates.
+        tooth_pts (list or np.ndarray): Tooth mask pixel coordinates.
+        caries_pts (list or np.ndarray): Caries region pixel coordinates.
+        pre_cleaned (bool): If True, skip DBSCAN cleaning in feature extraction.
+            [OPT] Avoids redundant DBSCAN when input is already a clean lesion.
 
     Returns:
         tuple: (predicted_surface, rotation_angle, metadata_dict).
     """
     try:
-        features = _extract_ml_feature_dict(tooth_id, tooth_pts, caries_pts)
+        # [OPT] Pass skip_clean to avoid redundant DBSCAN on pre-clustered lesions.
+        features = _extract_ml_feature_dict(
+            tooth_id, tooth_pts, caries_pts, skip_clean=pre_cleaned,
+        )
         if features is None or rf_model is None:
-            return classify_xthird(tooth_id, tooth_pts, caries_pts)
+            return classify_xthird(tooth_id, tooth_pts, caries_pts,
+                                   pre_cleaned=pre_cleaned)
 
         prediction_input_df = pd.DataFrame(
             [[features[col] for col in FEATURE_COLS]],
@@ -655,13 +1112,15 @@ def classify_ml(tooth_id, tooth_pts, caries_pts):
         }
 
         if not surface_scores:
-            return classify_xthird(tooth_id, tooth_pts, caries_pts)
+            return classify_xthird(tooth_id, tooth_pts, caries_pts,
+                                   pre_cleaned=pre_cleaned)
 
         prediction = max(surface_scores, key=surface_scores.get)
         return prediction, 0.0, {"method": "RandomForest_Proba"}
     except Exception:
         try:
-            return classify_xthird(tooth_id, tooth_pts, caries_pts)
+            return classify_xthird(tooth_id, tooth_pts, caries_pts,
+                                   pre_cleaned=pre_cleaned)
         except Exception:
             return "Other", 0.0, {}
 
@@ -674,6 +1133,12 @@ def process_case_ml(case_id, output_root):
     """
     Run classify_ml on all teeth in one case and save prediction JSON.
 
+    [OPT] Major changes vs original:
+      - Seg data streamed (not list()-wrapped).
+      - Caries data streamed one tooth at a time.
+      - Prediction JSON stripped of heavy coordinate arrays.
+      - Aggressive del + gc.collect() after each case.
+
     Args:
         case_id (int): Case identifier (1-500).
         output_root (Path): Root directory for predictions.
@@ -681,42 +1146,75 @@ def process_case_ml(case_id, output_root):
     Returns:
         tuple: (is_success, status_message).
     """
-    seg_data = _load_seg_case(case_id)
-    caries_data = _load_caries_case(case_id)
-
     case_dir = output_root / f"case_{case_id}"
     case_dir.mkdir(parents=True, exist_ok=True)
 
     result = {"case_number": int(case_id), "teeth_data": []}
+    result_path = case_dir / f"case_{case_id}.json"
 
-    if seg_data is None or caries_data is None:
-        with open(case_dir / f"case_{case_id}.json", "w", encoding="utf-8") as f:
+    # [OPT] Check caries file existence before expensive seg_map building.
+    caries_path = CARIES_DIR / f"case {case_id}" / f"case_{case_id}_caries_mapping.json"
+    if not caries_path.exists():
+        with open(result_path, "w", encoding="utf-8") as f:
             json.dump(result, f, indent=2)
-        return False, "Missing input data"
+        return False, "Missing caries data"
 
-    segmentation_map = build_seg_map(seg_data)
-    for tooth in caries_data.get("teeth_caries_data", []):
+    # [OPT] TRUE streaming seg_map builder.
+    segmentation_map = _build_seg_map_streaming(case_id)
+    if segmentation_map is None:
+        with open(result_path, "w", encoding="utf-8") as f:
+            json.dump(result, f, indent=2)
+        return False, "Missing seg data"
+
+    # [OPT] Stream caries teeth one-by-one.
+    for tooth in _stream_caries_teeth(case_id):
         tooth_id = str(tooth.get("tooth_id", ""))
-        tooth_pts = segmentation_map.get(tooth_id, [])
+        tooth_pts = segmentation_map.get(tooth_id)
+        if tooth_pts is None:
+            continue
         caries_pts = tooth.get("caries_coordinates", [])
 
-        surface, angle, metadata = classify_ml(tooth_id, tooth_pts, caries_pts)
+        # Split into individual lesion clusters.
+        lesions = split_caries_into_lesions(caries_pts)
+        is_pre_cleaned = True
+        if not lesions:
+            lesions = [caries_pts]  # fallback: treat entire blob as one
+            is_pre_cleaned = False  # [OPT] Raw points need cleaning
 
-        result["teeth_data"].append({
-            "tooth_id": tooth_id,
-            "version": "Run3",
-            "has_caries": True,
-            "confidence": float(tooth.get("confidence", 0.0)),
-            "caries_position_detail": surface,
-            "predicted_surface_fine": surface,
-            "tooth_coordinates": tooth_pts,
-            "caries_coordinates": caries_pts,
-        })
+        for lesion_idx, lesion_pts in enumerate(lesions):
+            # [OPT] pre_cleaned=True skips redundant DBSCAN on already-clustered lesions.
+            surface, angle, metadata = classify_ml(
+                tooth_id, tooth_pts, lesion_pts,
+                pre_cleaned=is_pre_cleaned,
+            )
 
-    with open(case_dir / f"case_{case_id}.json", "w", encoding="utf-8") as f:
+            # [OPT] STRIPPED: removed "tooth_coordinates" and "caries_coordinates"
+            #        from output.  These multi-MB arrays served no purpose in
+            #        evaluation and caused massive disk I/O + RAM pressure.
+            #        Prediction JSONs shrink from ~MBs to ~KBs each.
+            result["teeth_data"].append({
+                "tooth_id": tooth_id,
+                "lesion_idx": lesion_idx,
+                "version": "Run3_MultiLesion",
+                "has_caries": True,
+                "confidence": float(tooth.get("confidence", 0.0)),
+                "caries_position_detail": surface,
+                "predicted_surface_fine": surface,
+            })
+
+        # [OPT] Free per-tooth objects.
+        del lesions
+
+    teeth_count = len(result["teeth_data"])
+
+    with open(result_path, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2)
 
-    return True, f"OK ({len(result['teeth_data'])} teeth)"
+    # [OPT] Aggressively free case-level objects.
+    del segmentation_map, result
+    gc.collect()
+
+    return True, f"OK ({teeth_count} teeth)"
 
 
 # =========================================================
@@ -741,12 +1239,35 @@ def load_prediction(case_num, out_dir):
 
 
 def match_case(ground_truth, predictions):
-    """Match ground-truth and predicted surfaces by tooth ID."""
-    pred_dict = {p["tooth"]: p["surface"] for p in predictions}
-    y_true, y_pred = [], []
+    """
+    Match ground-truth and predicted surfaces per tooth.
+
+    Supports multiple surfaces per tooth (multi-lesion).  Uses greedy
+    matching: exact surface matches are consumed first, then remaining
+    GT surfaces are paired with leftover predictions (or 'Other').
+    """
+    gt_by_tooth = defaultdict(list)
     for g in ground_truth:
-        y_true.append(g["surface"])
-        y_pred.append(pred_dict.get(g["tooth"], "Other"))
+        gt_by_tooth[g["tooth"]].append(g["surface"])
+
+    pred_by_tooth = defaultdict(list)
+    for p in predictions:
+        pred_by_tooth[p["tooth"]].append(p["surface"])
+
+    y_true, y_pred = [], []
+    for tooth, gt_surfaces in gt_by_tooth.items():
+        pred_surfaces = list(pred_by_tooth.get(tooth, []))
+
+        # Greedy: consume exact matches first.
+        for gt_surf in gt_surfaces:
+            if gt_surf in pred_surfaces:
+                y_true.append(gt_surf)
+                y_pred.append(gt_surf)
+                pred_surfaces.remove(gt_surf)
+            else:
+                y_true.append(gt_surf)
+                y_pred.append(pred_surfaces.pop(0) if pred_surfaces else "Other")
+
     return y_true, y_pred
 
 
@@ -760,7 +1281,7 @@ def evaluate_version(version):
     Returns:
         tuple: (all_y_true, all_y_pred, f1_macro).
     """
-    out_dir = f"PCA_Output_{version}"
+    out_dir = _THIS_DIR / f"PCA_Output_{version}"  # [OPT] Absolute path — works regardless of CWD
     all_y_true, all_y_pred = [], []
 
     print(f"[RUNNING] Evaluating {version}...", flush=True)
@@ -840,7 +1361,7 @@ def plot_evaluation_results(y_true, y_pred, version="Run3"):
     ax1.tick_params(axis="both", labelsize=11)
     plt.tight_layout()
 
-    cm_path = f"confusion_matrix_{version.lower()}.png"
+    cm_path = _THIS_DIR / f"confusion_matrix_{version.lower()}.png"
     fig1.savefig(cm_path, dpi=300, bbox_inches="tight", facecolor="white")
     plt.close(fig1)
     print(f"[SAVED] Confusion matrix -> {cm_path}  (dpi=300)")
@@ -908,7 +1429,7 @@ def plot_evaluation_results(y_true, y_pred, version="Run3"):
     ax2.spines["right"].set_visible(False)
     plt.tight_layout()
 
-    metrics_path = f"classification_metrics_{version.lower()}.png"
+    metrics_path = _THIS_DIR / f"classification_metrics_{version.lower()}.png"
     fig2.savefig(metrics_path, dpi=300, bbox_inches="tight", facecolor="white")
     plt.close(fig2)
     print(f"[SAVED] Classification metrics -> {metrics_path}  (dpi=300)")
@@ -918,7 +1439,7 @@ def plot_evaluation_results(y_true, y_pred, version="Run3"):
 # Feature Importance Plot
 # =========================================================
 
-def plot_feature_importance(model, feature_names, save_path="feature_importance.png"):
+def plot_feature_importance(model, feature_names, save_path=_THIS_DIR / "feature_importance.png"):
     """
     Visualize and save Random Forest feature importances as a horizontal bar chart.
 
@@ -1009,7 +1530,7 @@ def plot_feature_importance(model, feature_names, save_path="feature_importance.
 # HTML README Generation
 # =========================================================
 
-def generate_readme_html(output_path="README_run3.html"):
+def generate_readme_html(output_path=_THIS_DIR / "README_run3.html"):
     """Generate the self-contained README_run3.html documentation file."""
 
     html_content = """\
@@ -1101,16 +1622,24 @@ def main():
         f"ได้ข้อมูลเตรียมเทรนทั้งหมด: {len(feature_dataframe)} ซี่",
         flush=True,
     )
+    # [OPT] Force GC between major pipeline steps.
+    gc.collect()
 
     # --- Step 2: Train model ---
     print("[RUNNING] Step 2: กำลัง Train โมเดล Random Forest...", flush=True)
     model, test_dataframe, _ = train_classify_ml(feature_dataframe)
+    # [OPT] Capture counts before freeing DataFrames.
+    n_total = len(feature_dataframe)
+    n_test = len(test_dataframe)
     print(
         f"[DONE] Step 2 เสร็จสิ้น! "
-        f"Train: {len(feature_dataframe) - len(test_dataframe)} ซี่ | "
-        f"Test: {len(test_dataframe)} ซี่",
+        f"Train: {n_total - n_test} ซี่ | "
+        f"Test: {n_test} ซี่",
         flush=True,
     )
+    # [OPT] Free training + test DataFrames — model internals don't reference them.
+    del feature_dataframe, test_dataframe
+    gc.collect()
 
     # --- Step 3: Predict with Smart Fallback ---
     total = len(case_ids)
@@ -1129,6 +1658,8 @@ def main():
         f"{success_count} เคส, ล้มเหลว: {failure_count} เคส",
         flush=True,
     )
+    # [OPT] Force GC after Step 3 (500 cases worth of intermediate objects).
+    gc.collect()
 
     # --- Step 4: Evaluate ---
     all_y_true, all_y_pred, f1 = evaluate_version("Run3")

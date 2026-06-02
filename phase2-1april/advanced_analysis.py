@@ -52,8 +52,7 @@ from sklearn.calibration import calibration_curve
 from pipeline_run3_final import (
     FEATURE_COLS, VALID_SURFACES, MODEL_PATH,
     SEG_DIR, CARIES_DIR, GT_ROOT,
-    _load_seg_case, _load_caries_case,
-    build_seg_map, parse_case_ground_truth,
+    parse_case_ground_truth,
     _extract_ml_feature_dict, remove_small_clusters,
     perform_pca, rotate, get_bbox,
     _progress_bar,
@@ -88,6 +87,40 @@ def setup_output_dirs():
     """Create all required output directories."""
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     ERROR_DIR.mkdir(parents=True, exist_ok=True)
+
+
+# =========================================================
+# Local Data Loading Helpers (Independent from Pipeline)
+# =========================================================
+# These use simple json.load() which is fine for loading
+# individual cases during analysis/plotting (not 500 at once).
+
+def _load_seg_case_local(case_id):
+    """Load segmentation data for a single case (simple json.load)."""
+    path = SEG_DIR / f"case {case_id}" / f"case_{case_id}_results.json"
+    if not path.exists():
+        return None
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _load_caries_case_local(case_id):
+    """Load caries mapping data for a single case (simple json.load)."""
+    path = CARIES_DIR / f"case {case_id}" / f"case_{case_id}_caries_mapping.json"
+    if not path.exists():
+        return None
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _build_seg_map_local(seg_data):
+    """Build tooth_id -> pixel_coordinates mapping from loaded seg data."""
+    if not seg_data:
+        return {}
+    return {
+        str(t["tooth_id"]): t.get("pixel_coordinates", [])
+        for t in seg_data.get("teeth_data", [])
+    }
 
 
 # =========================================================
@@ -475,12 +508,12 @@ def _plot_single_error(case_id, tooth_id, true_label, pred_label,
     PCA-aligned bounding box, and the three surface zones.
     """
     try:
-        seg_data = _load_seg_case(case_id)
-        caries_data = _load_caries_case(case_id)
+        seg_data = _load_seg_case_local(case_id)
+        caries_data = _load_caries_case_local(case_id)
         if seg_data is None or caries_data is None:
             return
 
-        seg_map = build_seg_map(seg_data)
+        seg_map = _build_seg_map_local(seg_data)
         tooth_pts = seg_map.get(tooth_id, [])
 
         # Find caries coordinates for this tooth
@@ -1054,12 +1087,12 @@ def task5_deployment_optimization(model, test_df):
         case_id = int(row["case_id"])
         tooth_id = str(row["tooth_id"])
 
-        seg_data = _load_seg_case(case_id)
-        caries_data = _load_caries_case(case_id)
+        seg_data = _load_seg_case_local(case_id)
+        caries_data = _load_caries_case_local(case_id)
         if seg_data is None or caries_data is None:
             continue
 
-        seg_map = build_seg_map(seg_data)
+        seg_map = _build_seg_map_local(seg_data)
         tooth_pts = seg_map.get(tooth_id, [])
 
         caries_pts = []
