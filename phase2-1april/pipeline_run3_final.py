@@ -1609,7 +1609,6 @@ SP/
 
 def main():
     """Run the complete Run 3 pipeline end-to-end."""
-    global rf_model
 
     OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
     case_ids = list(range(1, 501))
