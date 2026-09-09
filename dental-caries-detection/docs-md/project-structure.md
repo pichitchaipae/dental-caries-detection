@@ -1,4 +1,4 @@
-> **Last Updated:** 2026-08-30 15:01:07 +07
+> **Last Updated:** 2026-09-09 20:13:14 +07
 
 # Project Structure Document
 
@@ -27,8 +27,8 @@ machine is a single command: `docker compose up -d`.
 ### 1.1 Statelessness with respect to patient data
 
 The system stores **no patient records**. The database holds only transient
-**processing status** for the current job (state, failure message, result
-path, timestamp). The uploaded image and the result JSON live in a shared
+**processing status**, one row per submission (state, failure message, result
+path, timestamps). The uploaded image and the result JSON live in a shared
 working volume and are overwritten on each new submission; they are not
 archived, indexed, or linked to any patient identifier. Because no
 identifiable clinical data is retained, the tool remains outside the scope of
@@ -321,13 +321,15 @@ PostgreSQL stores job status only; no patient data is persisted at any step.
 - Only one inference is ever active. The Node.js backend is the single point
   of enforcement.
 - On `POST /process` while a run is in progress: the backend asks the ML
-  service to cancel the running child process, overwrites `input.jpg` with the
-  new image, resets the status row to `processing`, and starts a fresh run.
-  The preempted run's partial output is discarded.
+  service to cancel the running child process, closes the in-flight `jobs` row
+  by setting it to `superseded`, inserts a fresh `processing` row (new `id`),
+  overwrites `input.jpg` with the new image, and starts a fresh run. The
+  preempted run's partial output is discarded. See Section 8.2.
 - On page refresh or navigation away, the frontend stops polling; the next
   upload (or an explicit cancel) supersedes any run still executing.
-- There is no `cancelled` state in the schema: a preempted run is simply
-  replaced, and the single status row always describes the latest submission.
+- There is no `cancelled` state in the schema: a preempted run is marked
+  `superseded`, and `GET /process` always reports the highest-`id` row, which
+  describes the latest submission.
 
 ---
 
@@ -350,7 +352,7 @@ PostgreSQL stores job status only; no patient data is persisted at any step.
 - Response by current status:
 
 ```jsonc
-// status = idle (no submission yet this session)
+// status = idle (jobs table is empty: no submission has ever been made)
 { "status": "idle" }
 
 // status = processing
@@ -404,34 +406,116 @@ PostgreSQL stores job status only; no patient data is persisted at any step.
 
 ## 8. Database Design
 
-A single lightweight table tracks the state of the current (latest) job. It is
-effectively a singleton state machine; the backend always reads and updates
-the most recent row.
+A single lightweight table, `jobs`, records one row per submission (a **history
+table**, not a singleton). Each `POST /process` mints a new row; the ML service
+updates that same row in place when the run finishes. The "current" job is
+always the highest `id`.
+
+`idle` is **not a stored value**. It is a computed state meaning "the table has
+no rows yet" — a fresh clinic machine simply starts with an empty table, and
+`GET /process` reports `idle` until the first submission.
 
 **Engine: PostgreSQL 16. Table: `jobs`**
 
 | Column | Type | Description |
 |---|---|---|
-| `id` | `SERIAL` PRIMARY KEY | Row identifier. |
-| `status` | `VARCHAR(50)` | One of `idle`, `processing`, `done`, `fail`. Initial value `idle`. |
+| `id` | `SERIAL` PRIMARY KEY | Job identifier. Minted at the `processing` transition and retained unchanged through `done` / `fail`. Sequence gaps are expected and harmless. |
+| `status` | `VARCHAR(20)`, `NOT NULL` | One of `processing`, `done`, `fail`, `superseded`. `CHECK` constraint enforces the set. No `idle` value (see above). |
 | `fail_message` | `VARCHAR(255)`, nullable | Human-readable reason when `status = 'fail'`. |
 | `result_path` | `VARCHAR(255)`, nullable | Path to `result.json` in the shared volume when `status = 'done'`. |
-| `updated_at` | `TIMESTAMP` | Timestamp of the last status change; set on every update. |
+| `created_at` | `TIMESTAMPTZ`, `NOT NULL`, default `now()` | When the job was submitted. |
+| `updated_at` | `TIMESTAMPTZ`, `NOT NULL`, default `now()` | Timestamp of the last status change; set on every update. |
 
-Status transitions:
+```sql
+CREATE TABLE jobs (
+  id            SERIAL PRIMARY KEY,
+  status        VARCHAR(20) NOT NULL
+                  CHECK (status IN ('processing', 'done', 'fail', 'superseded')),
+  fail_message  VARCHAR(255),
+  result_path   VARCHAR(255),
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- At most one live job at any instant, enforced by the database itself.
+CREATE UNIQUE INDEX one_active_job ON jobs ((true)) WHERE status = 'processing';
+```
+
+### 8.1 Status lifecycle
 
 ```
-idle ────POST /process───▶ processing ──success──▶ done
-                              │  ▲                   │
-                          failure│  └──POST /process─┘ (preempt, new image)
-                              ▼
-                             fail ──POST /process──▶ processing
+(no rows) ──POST /process──▶ processing ──success──▶ done
+   = idle                      │      │
+                          failure│      └──POST /process──▶ superseded
+                              ▼                              (this row closed;
+                             fail                             a new row starts
+                              │                               at processing)
+                              └──POST /process──▶ (new row) processing
 ```
+
+- A job row is created **once** (by `POST /process`) and only ever updated
+  afterward. The ML service never inserts.
+- `done` and `fail` are `UPDATE`s scoped `WHERE id = :job_id`, so the id is
+  identical to the one minted at `processing`.
+- `superseded` is the terminal state of a run that was preempted by a newer
+  submission. It is distinct from `fail` so that preemptions do not pollute
+  failure metrics.
+
+### 8.2 Backend transition logic
+
+**`POST /process`** — preempt and insert atomically, capturing the new id:
+
+```sql
+BEGIN;
+  UPDATE jobs SET status = 'superseded', updated_at = now()
+   WHERE status = 'processing';
+  INSERT INTO jobs (status) VALUES ('processing') RETURNING id;   -- e.g. id = 42
+COMMIT;
+```
+
+The `one_active_job` unique index serializes concurrent submissions: if two
+uploads race, one transaction commits and the other fails on the index and
+retries (or returns `409`). The backend then overwrites `input.jpg`, calls the
+ML service `POST /infer` **passing `jobId: 42`**, and returns
+`202 { "status": "processing", "jobId": 42 }`.
+
+**`GET /process`** — read the latest row:
+
+```sql
+SELECT id, status, fail_message, result_path
+  FROM jobs ORDER BY id DESC LIMIT 1;
+```
+
+No row → `{ "status": "idle" }`. A `superseded` latest row is reported to the
+frontend as `processing` (a newer row is about to appear). Otherwise the status
+maps directly to the API contract in Section 7.1.
+
+**ML service on completion** — update *by id*, never "by latest":
+
+```sql
+UPDATE jobs
+   SET status = 'done', result_path = :path, updated_at = now()
+ WHERE id = :job_id AND status = 'processing';
+-- or: status = 'fail', fail_message = :msg
+```
+
+The `id = :job_id AND status = 'processing'` predicate is what keeps ids
+consistent under preemption: a late-finishing run updates its own row (or
+matches zero rows if it was already `superseded`), so its stale result can
+never overwrite the current job. The service checks the affected row count and
+logs when it is zero.
+
+### 8.3 Notes
 
 The table stores no image data, no patient identifiers, and no diagnostic
-history. The Node.js backend owns the schema and runs an idempotent
-`CREATE TABLE IF NOT EXISTS` (or ORM migration) on startup, so a fresh clinic
-machine is provisioned automatically on first `docker compose up`.
+history — only job status. Rows accumulate at the rate of real clinician
+submissions (dozens per day at most); a periodic prune of old `done` /
+`fail` / `superseded` rows is optional housekeeping, not a correctness concern.
+
+The Node.js backend owns the schema and runs an idempotent
+`CREATE TABLE IF NOT EXISTS` (plus the `CREATE UNIQUE INDEX IF NOT EXISTS`) or
+an equivalent ORM migration on startup, so a fresh clinic machine is
+provisioned automatically on first `docker compose up`.
 
 pgAdmin (Section 4.6) connects to this database for manual inspection during
 development; it plays no role in the runtime flow.
