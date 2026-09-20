@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
-import { submitOpg } from '../../api/processClient';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ApiError, submitOpg } from '../../api/processClient';
 import type { ProcessResponse } from '../../domain/inference';
 import { ImageUploader } from '../../components/ImageUploader';
 import { CanvasViewer } from '../../components/CanvasViewer/CanvasViewer';
 import { ToothDetailPanel } from '../../components/ToothDetailPanel';
 import { FindingsTable } from '../../components/FindingsTable';
 import { usePolling } from './usePolling';
+import { toViewModel } from './analysisTypes';
 import type { WorkflowState } from './analysisTypes';
 
 // Owns the whole upload -> processing -> results workflow. No router, no
@@ -17,6 +18,8 @@ export function AnalysisView() {
   const [state, setState] = useState<WorkflowState>({ phase: 'empty' });
   const [preview, setPreview] = useState<{ url: string; name: string } | null>(null);
   const [selectedToothId, setSelectedToothId] = useState<number | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [isReconnecting, setIsReconnecting] = useState(false);
 
   useEffect(() => {
     if (!preview) return;
@@ -25,6 +28,7 @@ export function AnalysisView() {
 
   const handleFileSelected = useCallback((file: File) => {
     setSelectedToothId(null);
+    setSubmitError(null);
     setPreview({ url: URL.createObjectURL(file), name: file.name });
     setState({ phase: 'selected', file });
   }, []);
@@ -32,14 +36,24 @@ export function AnalysisView() {
   const handleSubmit = useCallback(() => {
     if (state.phase !== 'selected') return;
     const { file } = state;
+    setSubmitError(null);
     setState({ phase: 'submitting', file });
 
     void (async () => {
-      const result = await submitOpg(file);
-      if (result.status === 'processing') {
-        setState({ phase: 'processing' });
-      } else {
-        setState({ phase: 'fail', failMessage: result.fail_message });
+      try {
+        const result = await submitOpg(file);
+        if (result.status === 'processing') {
+          setState({ phase: 'processing' });
+        } else {
+          setState({ phase: 'fail', failMessage: result.fail_message });
+        }
+      } catch (err) {
+        // FE-7.2: a network error on submit keeps the file selected so the
+        // clinician can just retry, instead of losing their upload.
+        const message =
+          err instanceof ApiError ? err.message : 'Could not reach the server. Please try again.';
+        setSubmitError(message);
+        setState({ phase: 'selected', file });
       }
     })();
   }, [state]);
@@ -55,17 +69,23 @@ export function AnalysisView() {
 
   const handleStartOver = useCallback(() => {
     setSelectedToothId(null);
+    setSubmitError(null);
+    setIsReconnecting(false);
     setPreview(null);
     setState({ phase: 'empty' });
   }, []);
 
-  usePolling(state.phase === 'processing', handlePollUpdate);
+  usePolling(state.phase === 'processing', handlePollUpdate, setIsReconnecting);
 
   const isBusy = state.phase === 'submitting' || state.phase === 'processing';
-  const selectedTooth =
-    state.phase === 'done'
-      ? (state.data.teeth.find((tooth) => tooth.id === selectedToothId) ?? null)
-      : null;
+
+  // FE-5.4: the view-model layer — CanvasViewer / ToothDetailPanel /
+  // FindingsTable all consume ToothViewModel, never the raw InferenceData.
+  const viewModel = useMemo(
+    () => (state.phase === 'done' ? toViewModel(state.data) : null),
+    [state]
+  );
+  const selectedTooth = viewModel?.teeth.find((tooth) => tooth.id === selectedToothId) ?? null;
 
   return (
     <div className="flex flex-col gap-8">
@@ -85,6 +105,13 @@ export function AnalysisView() {
                 />
               </div>
               <p className="truncate text-sm text-slate-600">{preview.name}</p>
+
+              {submitError && (
+                <p role="alert" className="text-sm font-medium text-danger-600">
+                  {submitError}
+                </p>
+              )}
+
               {state.phase === 'selected' && (
                 <button
                   type="button"
@@ -151,6 +178,14 @@ export function AnalysisView() {
               <p className="max-w-xs px-4 text-center text-sm">
                 Analyzing radiograph — this can take 30 seconds or more.
               </p>
+              {isReconnecting && (
+                <p
+                  role="status"
+                  className="rounded-full bg-amber-500/20 px-3 py-1 text-xs font-medium text-amber-300"
+                >
+                  Reconnecting to server…
+                </p>
+              )}
             </div>
           ) : state.phase === 'fail' ? (
             <div
@@ -159,26 +194,26 @@ export function AnalysisView() {
             >
               <p className="font-medium text-danger-600">{state.failMessage}</p>
             </div>
-          ) : (
+          ) : viewModel ? (
             <CanvasViewer
               imageBase64={state.imageBase64}
-              imageSize={state.data.image}
-              teeth={state.data.teeth}
+              imageSize={viewModel.image}
+              teeth={viewModel.teeth}
               selectedToothId={selectedToothId}
               onSelectTooth={setSelectedToothId}
             />
-          )}
+          ) : null}
         </section>
       </div>
 
-      {state.phase === 'done' && (
+      {state.phase === 'done' && viewModel && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="lg:col-span-1">
             <ToothDetailPanel tooth={selectedTooth} />
           </div>
           <div className="lg:col-span-2">
             <FindingsTable
-              teeth={state.data.teeth}
+              teeth={viewModel.teeth}
               selectedToothId={selectedToothId}
               onSelectTooth={setSelectedToothId}
             />

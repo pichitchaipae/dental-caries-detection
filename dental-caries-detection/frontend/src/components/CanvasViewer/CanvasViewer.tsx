@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Tooth } from '../../domain/inference';
+import type { ToothViewModel } from '../../features/analysis/analysisTypes';
 import { useCanvasRenderer } from './useCanvasRenderer';
 import { defaultLayerVisibility, type LayerKey } from './layerState';
 
 interface CanvasViewerProps {
   imageBase64: string;
   imageSize: { width: number; height: number };
-  teeth: Tooth[];
+  teeth: ToothViewModel[];
   selectedToothId: number | null;
   onSelectTooth: (id: number | null) => void;
 }
@@ -35,10 +35,24 @@ export function CanvasViewer({
   const [contrast, setContrast] = useState(100);
 
   useEffect(() => {
+    let cancelled = false;
     const img = new Image();
-    img.onload = () => setImage(img);
     img.src = imageBase64;
-    return () => setImage(null);
+    // FE-7.2: decode off the main thread before first paint, so a large
+    // base64 OPG doesn't stall on first `drawImage` inside the render loop.
+    img
+      .decode()
+      .catch(() => {
+        // Some environments resolve `decode()` before `onload`/never resolve
+        // it for data URIs; fall back to whatever the image ends up with.
+      })
+      .finally(() => {
+        if (!cancelled) setImage(img);
+      });
+    return () => {
+      cancelled = true;
+      setImage(null);
+    };
   }, [imageBase64]);
 
   useCanvasRenderer({
@@ -102,9 +116,15 @@ export function CanvasViewer({
         </label>
       </div>
 
-      <p className="text-xs text-slate-400">
-        Scroll to zoom, drag to pan, click a tooth to select it.
-      </p>
+      {teeth.length === 0 ? (
+        <p className="text-xs font-medium text-amber-600">
+          No teeth detected in this image. Scroll to zoom, drag to pan.
+        </p>
+      ) : (
+        <p className="text-xs text-slate-400">
+          Scroll to zoom, drag to pan, click a tooth to select it.
+        </p>
+      )}
     </div>
   );
 }

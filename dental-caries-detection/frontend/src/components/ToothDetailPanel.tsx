@@ -1,7 +1,7 @@
-import type { Tooth } from '../domain/inference';
+import type { ToothViewModel } from '../features/analysis/analysisTypes';
 
 interface ToothDetailPanelProps {
-  tooth: Tooth | null;
+  tooth: ToothViewModel | null;
 }
 
 export function ToothDetailPanel({ tooth }: ToothDetailPanelProps) {
@@ -15,9 +15,17 @@ export function ToothDetailPanel({ tooth }: ToothDetailPanelProps) {
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-6">
-      <h2 className="text-base font-semibold text-slate-900">FDI {tooth.fdi}</h2>
+      <div className="mb-3 flex items-center gap-2">
+        <span
+          className="h-2.5 w-2.5 shrink-0 rounded-full"
+          style={{ backgroundColor: tooth.colorKey }}
+          aria-hidden="true"
+        />
+        <h2 className="text-base font-semibold text-slate-900">{tooth.displayLabel}</h2>
+      </div>
       <p className="mb-3 text-sm text-slate-500">
-        Detection confidence: {(tooth.confidence * 100).toFixed(0)}%
+        Detection confidence: {(tooth.confidence * 100).toFixed(0)}% · {tooth.cariesSummary}{' '}
+        affected
       </p>
       <table className="w-full text-sm">
         <thead>

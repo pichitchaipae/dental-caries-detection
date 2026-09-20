@@ -1,7 +1,7 @@
-import type { Tooth } from '../domain/inference';
+import type { ToothViewModel } from '../features/analysis/analysisTypes';
 
 interface FindingsTableProps {
-  teeth: Tooth[];
+  teeth: ToothViewModel[];
   selectedToothId: number | null;
   onSelectTooth: (id: number) => void;
 }
@@ -21,30 +21,53 @@ export function FindingsTable({ teeth, selectedToothId, onSelectTooth }: Finding
           </tr>
         </thead>
         <tbody>
-          {teeth.map((tooth) => {
-            const cariesSurfaces = tooth.surfaces.filter((surface) => surface.label === 'caries');
-            const isSelected = tooth.id === selectedToothId;
-            return (
-              <tr
-                key={tooth.id}
-                onClick={() => onSelectTooth(tooth.id)}
-                className={
-                  'cursor-pointer transition-colors ' +
-                  (isSelected ? 'bg-brand-50' : 'hover:bg-slate-50')
-                }
-              >
-                <td className="border-b border-slate-100 px-6 py-2.5">{tooth.fdi}</td>
-                <td className="border-b border-slate-100 px-6 py-2.5">
-                  {(tooth.confidence * 100).toFixed(0)}%
-                </td>
-                <td className="border-b border-slate-100 px-6 py-2.5">
-                  {cariesSurfaces.length === 0
-                    ? '—'
-                    : cariesSurfaces.map((surface) => surface.name).join(', ')}
-                </td>
-              </tr>
-            );
-          })}
+          {teeth.length === 0 ? (
+            <tr>
+              <td colSpan={3} className="px-6 py-4 text-center text-slate-500">
+                No teeth detected in this image.
+              </td>
+            </tr>
+          ) : (
+            teeth.map((tooth) => {
+              const cariesSurfaceNames = tooth.surfaces
+                .filter((surface) => surface.label === 'caries')
+                .map((surface) => surface.name)
+                .join(', ');
+              const isSelected = tooth.id === selectedToothId;
+
+              return (
+                <tr
+                  key={tooth.id}
+                  onClick={() => onSelectTooth(tooth.id)}
+                  className={
+                    'cursor-pointer transition-colors ' +
+                    (isSelected ? 'bg-brand-50' : 'hover:bg-slate-50')
+                  }
+                >
+                  <td className="border-b border-slate-100 px-6 py-2.5">
+                    <span className="flex items-center gap-2">
+                      <span
+                        className="h-2 w-2 shrink-0 rounded-full"
+                        style={{ backgroundColor: tooth.colorKey }}
+                        aria-hidden="true"
+                      />
+                      {tooth.fdi}
+                    </span>
+                  </td>
+                  <td className="border-b border-slate-100 px-6 py-2.5">
+                    {(tooth.confidence * 100).toFixed(0)}%
+                  </td>
+                  <td className="border-b border-slate-100 px-6 py-2.5">
+                    {tooth.hasCaries ? (
+                      <span className="font-medium text-danger-600">{cariesSurfaceNames}</span>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
+                </tr>
+              );
+            })
+          )}
         </tbody>
       </table>
     </div>

@@ -7,17 +7,18 @@ Served in its container by `vite preview` (no Nginx, per
 11.8). `VITE_FRONTEND_API_BASE_URL` and `VITE_POLL_INTERVAL_MS` are baked into
 the bundle at build time; changing them requires a rebuild.
 
-## Layout (through Sprint 6)
+## Layout (through Sprint 7)
 
 ```
 src/
 ├── main.tsx                    # React 18 bootstrap; starts the MSW mock in dev (see Mocking below)
-├── App.tsx / App.module.css    # FE-4.1: header / main / footer shell
+├── App.tsx                     # FE-4.1: header / main / footer shell + mock/live status badge
+├── styles/global.css           # Tailwind entry point (@import 'tailwindcss') + @theme color tokens
 ├── domain/
 │   ├── inference.ts            # FE-4.2: types + zod contract (parseProcessResponse)
 │   └── __tests__/inference.test.ts
 ├── api/
-│   └── processClient.ts        # FE-4.3: submitOpg / fetchStatus, real fetch calls
+│   └── processClient.ts        # FE-4.3: submitOpg / fetchStatus, real fetch calls, ApiError
 ├── lib/
 │   ├── validation.ts           # FE-4.4: client-side pre-flight mirror (not authoritative)
 │   └── rle.ts                  # FE-4.5: polygon mask decode + point-in-polygon hit test
@@ -28,22 +29,49 @@ src/
 │   ├── resultFactory.ts        # Generates synthetic teeth sized to the real uploaded image
 │   └── browser.ts              # setupWorker(...handlers)
 ├── features/analysis/
-│   ├── AnalysisView.tsx        # FE-5.1: workflow state machine (empty→...→done/fail)
-│   ├── usePolling.ts           # FE-5.3: polls GET /process every VITE_POLL_INTERVAL_MS
-│   └── analysisTypes.ts
+│   ├── AnalysisView.tsx        # FE-5.1/7.2: workflow state machine + submit/poll error handling
+│   ├── usePolling.ts           # FE-5.3/7.2: setTimeout-recursion poll loop, capped backoff on failure
+│   ├── analysisTypes.ts        # FE-5.4: toViewModel — ToothViewModel (labels, caries summary, colorKey)
+│   └── __tests__/
 ├── components/
 │   ├── ImageUploader.tsx       # FE-5.2: drag/drop + pre-flight validation
-│   ├── CanvasViewer/           # FE-6.x: pan/zoom/hit-test renderer, layer toggles
-│   ├── ToothDetailPanel.tsx
-│   └── FindingsTable.tsx
-└── styles/global.css           # CSS reset + color tokens; components use CSS Modules
+│   ├── CanvasViewer/           # FE-6.x: pan/zoom/hit-test renderer, layer toggles, brightness/contrast
+│   ├── ToothDetailPanel.tsx    # consumes ToothViewModel
+│   └── FindingsTable.tsx       # consumes ToothViewModel; empty-state when teeth.length === 0
 ```
 
-**Styling decision (FE-4.1):** CSS Modules per component (`*.module.css`), plus
-one global stylesheet for resets and color tokens. No CSS-in-JS, no framework —
-kept minimal since there's no design system to integrate with yet.
+**Styling:** Tailwind CSS v4 (`@tailwindcss/vite` plugin, see `vite.config.ts`),
+utility classes directly in JSX. No CSS Modules, no CSS-in-JS — migrated off
+CSS Modules when the UI was redesigned against a reference mockup; brand
+colors live as Tailwind `@theme` tokens in `styles/global.css` (`brand-*`,
+`danger-*`, `success-*`, `warning-*`).
 
-## Mocking the backend (Sprints 4-6)
+**State strategy (FE-4.1):** local React state + hooks only, no external
+store. `AnalysisView` is the single source of truth for workflow phase,
+selected tooth, and submit/connectivity error state; a page refresh discards
+everything by design (project-structure.md 4.2 — a refresh also abandons any
+in-progress run, since polling stops).
+
+**View-model layer (FE-5.4):** components never consume the raw
+`InferenceData`/`Tooth` wire types directly. `analysisTypes.toViewModel(data)`
+precomputes `displayLabel` ("FDI 36"), `cariesSummary` ("1 / 5 surfaces"),
+`hasCaries`, and a stable per-tooth `colorKey` used for the bounding-box
+stroke color on canvas and the identity dot in `FindingsTable`/
+`ToothDetailPanel` — so a given tooth reads as the same color everywhere.
+
+**Resilience (Sprint 7, FE-7.2):**
+- `submitOpg` network failure keeps the file selected and shows an inline
+  error with a retry (`AnalysisView`'s `submitError` state).
+- Polling backs off exponentially (capped at 8x the base interval) on
+  consecutive failures and shows a non-blocking "Reconnecting to server…"
+  note without leaving the processing view; resets on the next success
+  (`usePolling.ts`, unit-tested with fake timers).
+- A `done` payload with zero teeth shows "No teeth detected" in both the
+  canvas hint and the Findings Table instead of an empty-looking view.
+- `CanvasViewer` calls `img.decode()` before first paint so a large base64
+  image doesn't stall the main thread on the first draw.
+
+## Mocking the backend (Sprints 4-7)
 
 Naris's real `POST`/`GET /process` routes don't exist yet (Sprint 3, `BE-3.6`/
 `BE-3.7`). Per `docs-md/task-pm-phase1.md`'s own risk table ("`INT-2` fixture +

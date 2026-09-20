@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
-import type { Tooth } from '../../domain/inference';
+import type { ToothViewModel } from '../../features/analysis/analysisTypes';
 import type { LayerVisibility } from './layerState';
 import { drawAxes, drawBoundingBox, drawLabel, drawMask } from './overlays';
 import { decodeMask, isPointInPolygon } from '../../lib/rle';
@@ -19,7 +19,7 @@ interface UseCanvasRendererArgs {
   canvasRef: RefObject<HTMLCanvasElement | null>;
   image: HTMLImageElement | null;
   imageSize: { width: number; height: number };
-  teeth: Tooth[];
+  teeth: ToothViewModel[];
   selectedToothId: number | null;
   layers: LayerVisibility;
   imageFilter: ImageFilter;
@@ -107,7 +107,7 @@ export function useCanvasRenderer({
       return [(canvasX - offsetX) / scale, (canvasY - offsetY) / scale];
     };
 
-    const hitTest = (imgX: number, imgY: number): Tooth | null => {
+    const hitTest = (imgX: number, imgY: number): ToothViewModel | null => {
       for (let i = teeth.length - 1; i >= 0; i -= 1) {
         const tooth = teeth[i];
         const rings = decodeMask(tooth.mask, imageSize.width, imageSize.height);
