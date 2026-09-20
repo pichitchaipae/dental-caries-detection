@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 import numpy as np
 
-from snodent_tooth_map import (
+from reserch.week6.snodent_tooth_map import (
     SNODENT_TO_FDI,
     SNODENT_SURFACE_MAP,
     DISPLAY_NAME_TO_SURFACE,

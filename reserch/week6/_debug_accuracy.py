@@ -1,7 +1,7 @@
 """Quick diagnostic: show what eval compares vs what MZ produces."""
 import sys
 sys.path.insert(0, ".")
-from evaluation_engine import evaluate_single_case, normalize_surface, normalize_surface_fine
+from reserch.week6.evaluation_engine import evaluate_single_case, normalize_surface, normalize_surface_fine
 
 total_match = 0
 total_tp = 0

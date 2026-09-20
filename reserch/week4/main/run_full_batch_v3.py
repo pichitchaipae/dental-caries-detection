@@ -1,21 +1,13 @@
-#!/usr/bin/env python3
 """
-================================================================================
-V3.0 ADVANCED BATCH PROCESSING - 500 CASES
-================================================================================
-Pipeline: Inference (Detectron2) -> Standardization -> Advanced Visualization
+Full Batch Processing Script - V3.0 Instance Segmentation Pipeline
+===================================================================
+Processes ALL 500 cases through the complete pipeline:
+    Step 1: Inference (V3.0 with Detectron2)
+    Step 2: Standardization (Legacy format with pixel_coordinates)
+    Step 3: Visualization (Advanced overlay)
 
-Output Structure:
-    final_advanced_output/
-    ├── case 1/
-    │   ├── case_1.png                    (Original Image)
-    │   ├── case_1_caries_mapping.json    (Standardized JSON)
-    │   └── case_1_advanced_viz.jpg       (Color-Coded Segmentation)
-    ...
-    └── case 500/
-
-Author: MLOps Pipeline
-Version: 3.0 Advanced
+Author: Senior MLOps Engineer
+Date: 2025-01-27
 """
 
 import os
@@ -24,75 +16,69 @@ import json
 import shutil
 import subprocess
 import time
-import re
 from pathlib import Path
 from datetime import datetime
-from typing import List, Tuple, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 
-# =============================================================================
-# CONFIGURATION - HIGH ACCURACY
-# =============================================================================
-
-# Base paths - Fixed to main folder structure
-MAIN_DIR = Path(__file__).parent.resolve()  # week4/main folder
-WEEK4_DIR = MAIN_DIR.parent  # week4 folder
-SP_ROOT = WEEK4_DIR.parent  # SP folder
-
-# Input source
-INPUT_DIR = SP_ROOT / "material" / "500 cases with annotation"
-
-# Output destination
-OUTPUT_DIR = WEEK4_DIR / "final_advanced_output"
-RAW_OUTPUT_DIR = OUTPUT_DIR / "_raw_inference"
-
-# Model paths
-CARIES_MODEL = WEEK4_DIR / "runs" / "caries_train" / "caries_3class" / "weights" / "best.pt"
-TOOTH_MODEL = SP_ROOT / "material" / "Tooth Segmentation + Recognition model" / "weights" / "Tooth_seg_pano_20250319.pt"
-CROP_MODEL = SP_ROOT / "material" / "Tooth Segmentation + Recognition model" / "weights" / "Tooth_seg_crop_20250424.pth"
-
-# Scripts - Main scripts in main folder, standardize in week4
-INFERENCE_SCRIPT = MAIN_DIR / "inference.py"
-STANDARDIZE_SCRIPT = WEEK4_DIR / "standardize_week4.py"
-VIZ_SCRIPT = MAIN_DIR / "viz_advanced.py"
-
-# Python executable (use current environment)
-PYTHON_EXE = Path(sys.executable)
-
-# Pipeline parameters - HIGH ACCURACY
-CARIES_CONF = 0.01  # 1% confidence threshold to maximize recall
-TOOTH_CONF = 0.35   # Lower threshold for better tooth coverage
-
-# Progress tracking
+# Progress bar
 try:
     from tqdm import tqdm
     TQDM_AVAILABLE = True
 except ImportError:
     TQDM_AVAILABLE = False
+    print("Warning: tqdm not available. Install with: pip install tqdm")
+
+
+# =============================================================================
+# CONFIGURATION - HIGH ACCURACY
+# =============================================================================
+
+# Python executable - use the current environment's Python
+PYTHON_EXE = sys.executable
+
+# Base paths - Fixed to week4 folder structure
+MAIN_DIR = Path(__file__).parent  # week4/main folder
+WEEK4_DIR = MAIN_DIR.parent  # week4 folder
+BASE_DIR = WEEK4_DIR.parent  # SP folder
+
+# Input sources (priority order)
+INPUT_SOURCES = [
+    BASE_DIR / "material" / "500 cases with annotation",
+    BASE_DIR / "week2" / "500-segmentation+recognition",
+]
+
+# Output destination
+OUTPUT_DIR = WEEK4_DIR / "final_500_structured"
+
+# Model paths
+CARIES_MODEL = WEEK4_DIR / "runs" / "caries_train" / "caries_3class" / "weights" / "best.pt"
+TOOTH_MODEL = BASE_DIR / "material" / "Tooth Segmentation + Recognition model" / "weights" / "Tooth_seg_pano_20250319.pt"
+CROP_MODEL = BASE_DIR / "material" / "Tooth Segmentation + Recognition model" / "weights" / "Tooth_seg_crop_20250424.pth"
+
+# Scripts - in main folder
+INFERENCE_SCRIPT = MAIN_DIR / "inference.py"
+STANDARDIZE_SCRIPT = WEEK4_DIR / "standardize_week4.py"
+VIZ_SCRIPT = MAIN_DIR / "viz_advanced.py"
+
+# Inference parameters - HIGH ACCURACY
+CARIES_CONF = 0.01  # 1% threshold to maximize recall
+TOOTH_CONF = 0.35   # Lower threshold for better tooth coverage
+
+# Temporary output for raw inference
+RAW_OUTPUT_DIR = WEEK4_DIR / "inference_output_v3_batch"
 
 
 # =============================================================================
 # UTILITY FUNCTIONS
 # =============================================================================
 
-def find_image_in_folder(folder: Path) -> Optional[Path]:
-    """Find the main image file in a case folder."""
-    extensions = ['.png', '.jpg', '.jpeg', '.PNG', '.JPG', '.JPEG']
-    
-    for ext in extensions:
-        candidates = list(folder.glob(f"*{ext}"))
-        # Filter out annotation/mask images
-        for img in candidates:
-            name_lower = img.stem.lower()
-            if not any(x in name_lower for x in ['mask', 'annotation', 'label', 'seg', 'overlay']):
-                return img
-    
-    # Fallback: return first image found
-    for ext in extensions:
-        candidates = list(folder.glob(f"*{ext}"))
-        if candidates:
-            return candidates[0]
-    
-    return None
+def find_input_source() -> Path:
+    """Find the first available input source directory."""
+    for source in INPUT_SOURCES:
+        if source.exists():
+            print(f"✓ Found input source: {source}")
+            return source
+    raise FileNotFoundError("No input source directory found!")
 
 
 def discover_cases(input_dir: Path) -> List[Tuple[int, Path, Path]]:
@@ -100,7 +86,7 @@ def discover_cases(input_dir: Path) -> List[Tuple[int, Path, Path]]:
     Discover all case folders and their images.
     
     Returns:
-        List of (case_number, case_folder, image_path)
+        List of (case_number, case_folder, image_path) tuples
     """
     cases = []
     
@@ -108,13 +94,31 @@ def discover_cases(input_dir: Path) -> List[Tuple[int, Path, Path]]:
         if not folder.is_dir():
             continue
         
-        # Extract case number
-        match = re.match(r'case\s*(\d+)', folder.name, re.IGNORECASE)
-        if not match:
+        # Check if folder name matches "case X" pattern
+        folder_name = folder.name.lower()
+        if not folder_name.startswith("case "):
             continue
         
-        case_num = int(match.group(1))
-        image_path = find_image_in_folder(folder)
+        try:
+            case_num = int(folder_name.replace("case ", ""))
+        except ValueError:
+            continue
+        
+        # Find image file (case_X.png or case_X.jpg)
+        image_path = None
+        for ext in ['.png', '.jpg', '.jpeg', '.PNG', '.JPG']:
+            potential_path = folder / f"case_{case_num}{ext}"
+            if potential_path.exists():
+                image_path = potential_path
+                break
+        
+        # Also check without underscore
+        if image_path is None:
+            for ext in ['.png', '.jpg', '.jpeg', '.PNG', '.JPG']:
+                potential_path = folder / f"case{case_num}{ext}"
+                if potential_path.exists():
+                    image_path = potential_path
+                    break
         
         if image_path:
             cases.append((case_num, folder, image_path))
@@ -124,36 +128,39 @@ def discover_cases(input_dir: Path) -> List[Tuple[int, Path, Path]]:
     return cases
 
 
-def run_command(cmd: List, description: str, timeout: int = 180, debug: bool = False) -> bool:
+def run_command(cmd: List[str], description: str, timeout: int = 300) -> bool:
     """
-    Run a subprocess command with timeout and error handling.
+    Run a command and return success status.
+    
+    Args:
+        cmd: Command list
+        description: Description for logging
+        timeout: Timeout in seconds
+    
+    Returns:
+        True if successful, False otherwise
     """
     try:
-        # Convert all command parts to strings
-        cmd_str = [str(c) for c in cmd]
-        
-        if debug:
-            print(f"\n  [DEBUG] Command: {' '.join(cmd_str[:4])}...")
-        
         result = subprocess.run(
-            cmd_str,
+            cmd,
             capture_output=True,
             text=True,
             timeout=timeout,
-            cwd=str(WEEK4_DIR),
-            encoding='utf-8',
-            errors='replace'
+            cwd=str(WEEK4_DIR)
         )
         
         if result.returncode != 0:
-            if debug:
-                print(f"  [DEBUG] STDERR: {result.stderr[:500] if result.stderr else 'None'}")
+            print(f"\n  ⚠ {description} failed:")
+            print(f"    {result.stderr[:500] if result.stderr else 'No error message'}")
             return False
+        
         return True
         
     except subprocess.TimeoutExpired:
+        print(f"\n  ⚠ {description} timed out after {timeout}s")
         return False
     except Exception as e:
+        print(f"\n  ⚠ {description} error: {e}")
         return False
 
 
@@ -161,48 +168,45 @@ def run_command(cmd: List, description: str, timeout: int = 180, debug: bool = F
 # PIPELINE STEPS
 # =============================================================================
 
-def step1_inference(image_path: Path, case_num: int, debug: bool = False) -> bool:
+def step1_inference(image_path: Path, case_num: int) -> bool:
     """
-    Step 1: Run V3.0 inference with Detectron2 segmentation.
+    Step 1: Run V3.0 inference with Detectron2 fine segmentation.
     """
-    # Verify image exists before running
-    if not image_path.exists():
-        if debug:
-            print(f"  [ERROR] Image not found: {image_path}")
-        return False
-    
     cmd = [
-        str(PYTHON_EXE), 
-        str(INFERENCE_SCRIPT),
+        PYTHON_EXE, str(INFERENCE_SCRIPT),
         "-i", str(image_path),
         "-m", str(CARIES_MODEL),
-        "--tooth_model", str(TOOTH_MODEL),
+        "-t", str(TOOTH_MODEL),
         "--crop_model", str(CROP_MODEL),
         "-c", str(CARIES_CONF),
         "--tooth_conf", str(TOOTH_CONF),
         "-o", str(RAW_OUTPUT_DIR),
-        "--no_visualize"
+        "--no_visualize"  # Skip built-in viz, we'll use viz_advanced.py
     ]
     
-    return run_command(cmd, f"Inference case {case_num}", timeout=180, debug=debug)
+    return run_command(cmd, f"Inference case {case_num}", timeout=120)
 
 
 def step2_standardize(case_num: int) -> bool:
     """
     Step 2: Convert raw inference output to standardized format.
-    Performs inline conversion without calling external script.
-    """
-    # Add week4 to path for imports
-    if str(WEEK4_DIR) not in sys.path:
-        sys.path.insert(0, str(WEEK4_DIR))
     
+    Directly converts the JSON without calling the full standardize script.
+    """
+    import sys
+    sys.path.insert(0, str(WEEK4_DIR))
+    
+    # Import standardization function
     try:
-        from standardize_week4 import convert_week4_to_week3_schema
+        from reserch.week4.standardize_week4 import convert_week4_to_week3_schema, save_json
     except ImportError:
-        # Fallback to subprocess if import fails
+        # Fallback: run the script
         raw_json = RAW_OUTPUT_DIR / f"case_{case_num}_results.json"
         if not raw_json.exists():
             return False
+        
+        case_output_dir = OUTPUT_DIR / f"case {case_num}"
+        case_output_dir.mkdir(parents=True, exist_ok=True)
         
         cmd = [
             PYTHON_EXE, str(STANDARDIZE_SCRIPT),
@@ -210,15 +214,16 @@ def step2_standardize(case_num: int) -> bool:
             "-o", str(OUTPUT_DIR)
         ]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=60, cwd=str(WEEK4_DIR))
-        case_json = OUTPUT_DIR / f"case {case_num}" / f"case_{case_num}_caries_mapping.json"
+        case_json = case_output_dir / f"case_{case_num}_caries_mapping.json"
         return case_json.exists()
     
-    # Find raw JSON
+    # Find the raw JSON file
     raw_json = RAW_OUTPUT_DIR / f"case_{case_num}_results.json"
+    
     if not raw_json.exists():
         return False
     
-    # Create output folder
+    # Create case output folder
     case_output_dir = OUTPUT_DIR / f"case {case_num}"
     case_output_dir.mkdir(parents=True, exist_ok=True)
     
@@ -244,13 +249,13 @@ def step2_standardize(case_num: int) -> bool:
 def step3_visualize(image_path: Path, case_num: int) -> bool:
     """
     Step 3: Generate advanced visualization overlay.
-    Output: case_X_advanced_viz.jpg
     """
     case_output_dir = OUTPUT_DIR / f"case {case_num}"
     json_path = case_output_dir / f"case_{case_num}_caries_mapping.json"
-    output_path = case_output_dir / f"case_{case_num}_advanced_viz.jpg"
+    output_path = case_output_dir / f"case_{case_num}_overlay.png"
     
     if not json_path.exists():
+        print(f"\n  ⚠ Standardized JSON not found: {json_path}")
         return False
     
     cmd = [
@@ -267,17 +272,20 @@ def step3_visualize(image_path: Path, case_num: int) -> bool:
 
 def copy_original_image(image_path: Path, case_num: int) -> bool:
     """
-    Copy original image to output folder as case_X.png
+    Copy original image to output folder.
     """
     case_output_dir = OUTPUT_DIR / f"case {case_num}"
     case_output_dir.mkdir(parents=True, exist_ok=True)
     
-    output_path = case_output_dir / f"case_{case_num}.png"
+    # Determine output filename
+    ext = image_path.suffix
+    output_path = case_output_dir / f"case_{case_num}{ext}"
     
     try:
         shutil.copy2(image_path, output_path)
         return True
-    except Exception:
+    except Exception as e:
+        print(f"\n  ⚠ Copy error: {e}")
         return False
 
 
@@ -293,17 +301,17 @@ def process_single_case(
     skip_existing: bool = True
 ) -> bool:
     """
-    Process a single case through all 3 pipeline steps.
+    Process a single case through all pipeline steps.
     
     Returns:
         True if all steps successful, False otherwise
     """
-    # Check if already processed
+    # Check if already processed (skip existing)
     case_output_dir = OUTPUT_DIR / f"case {case_num}"
     case_json = case_output_dir / f"case_{case_num}_caries_mapping.json"
-    case_viz = case_output_dir / f"case_{case_num}_advanced_viz.jpg"
+    case_overlay = case_output_dir / f"case_{case_num}_overlay.png"
     
-    if skip_existing and case_json.exists() and case_viz.exists():
+    if skip_existing and case_json.exists() and case_overlay.exists():
         stats['skipped'] += 1
         return True
     
@@ -312,8 +320,8 @@ def process_single_case(
         stats['copy_failed'] += 1
         return False
     
-    # Step 1: Inference (Deep Scan V3.0)
-    if not step1_inference(image_path, case_num, debug=False):
+    # Step 1: Inference
+    if not step1_inference(image_path, case_num):
         stats['inference_failed'] += 1
         return False
     stats['inference_ok'] += 1
@@ -324,7 +332,7 @@ def process_single_case(
         return False
     stats['standardize_ok'] += 1
     
-    # Step 3: Advanced Visualization
+    # Step 3: Visualization
     if not step3_visualize(image_path, case_num):
         stats['viz_failed'] += 1
         return False
@@ -333,18 +341,18 @@ def process_single_case(
     return True
 
 
-def run_batch_processing(skip_existing: bool = True):
+def run_batch_processing():
     """
-    Main batch processing function for all 500 cases.
+    Main batch processing function.
     """
     print("\n" + "=" * 70)
-    print("V3.0 ADVANCED BATCH PROCESSING - 500 CASES")
-    print("Detectron2 Instance Segmentation + Color-Coded Visualization")
+    print("V3.0 FULL BATCH PROCESSING - 500 CASES")
+    print("Instance Segmentation + Readable Labels Pipeline")
     print("=" * 70)
     
     start_time = time.time()
     
-    # Verify configuration
+    # Verify paths
     print("\n[1] VERIFYING CONFIGURATION")
     print("-" * 50)
     
@@ -356,13 +364,13 @@ def run_batch_processing(skip_existing: bool = True):
         ("Crop Model (Detectron2)", CROP_MODEL),
     ]:
         if path.exists():
-            print(f"  [OK] {name}: {path.name}")
+            print(f"  ✓ {name}: {path.name}")
         else:
-            print(f"  [X]  {name}: NOT FOUND - {path}")
+            print(f"  ✗ {name}: NOT FOUND - {path}")
             models_ok = False
     
     if not models_ok:
-        print("\n[ERROR] Missing models. Aborting.")
+        print("\n❌ Missing models. Aborting.")
         return
     
     # Check scripts
@@ -372,28 +380,20 @@ def run_batch_processing(skip_existing: bool = True):
         ("Visualization Script", VIZ_SCRIPT),
     ]:
         if path.exists():
-            print(f"  [OK] {name}: {path.name}")
+            print(f"  ✓ {name}: {path.name}")
         else:
-            print(f"  [X]  {name}: NOT FOUND - {path}")
+            print(f"  ✗ {name}: NOT FOUND - {path}")
             return
     
-    # Discover cases
+    # Find input source
     print("\n[2] DISCOVERING CASES")
     print("-" * 50)
     
-    if not INPUT_DIR.exists():
-        print(f"  [X] Input directory not found: {INPUT_DIR}")
-        return
+    input_dir = find_input_source()
+    cases = discover_cases(input_dir)
     
-    cases = discover_cases(INPUT_DIR)
-    
-    if not cases:
-        print("  [X] No cases found!")
-        return
-    
-    print(f"  [OK] Input source: {INPUT_DIR}")
-    print(f"  -> Found {len(cases)} cases")
-    print(f"  -> Case range: {cases[0][0]} to {cases[-1][0]}")
+    print(f"  → Found {len(cases)} cases")
+    print(f"  → Case range: {cases[0][0]} to {cases[-1][0]}")
     
     # Create output directories
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -402,10 +402,9 @@ def run_batch_processing(skip_existing: bool = True):
     # Print configuration
     print("\n[3] PIPELINE CONFIGURATION")
     print("-" * 50)
-    print(f"  Caries Confidence:  {CARIES_CONF} ({CARIES_CONF*100:.0f}%)")
-    print(f"  Tooth Confidence:   {TOOTH_CONF}")
-    print(f"  Skip Existing:      {skip_existing}")
-    print(f"  Output Directory:   {OUTPUT_DIR}")
+    print(f"  Caries Confidence: {CARIES_CONF} ({CARIES_CONF*100:.0f}%)")
+    print(f"  Tooth Confidence:  {TOOTH_CONF}")
+    print(f"  Output Directory:  {OUTPUT_DIR}")
     
     # Initialize stats
     stats = {
@@ -438,25 +437,16 @@ def run_batch_processing(skip_existing: bool = True):
         if not TQDM_AVAILABLE and stats['processed'] % 50 == 0:
             print(f"  Processing case {case_num}... ({stats['processed']}/{stats['total']})")
         
-        try:
-            success = process_single_case(case_num, case_folder, image_path, stats, skip_existing)
-        except KeyboardInterrupt:
-            print("\n\n[INTERRUPTED] Batch processing stopped by user.")
-            break
-        except Exception as e:
-            success = False
-            stats['failed'] += 1
-            failed_cases.append(case_num)
+        success = process_single_case(case_num, case_folder, image_path, stats, skip_existing=True)
         
         stats['processed'] += 1
         if success:
             stats['successful'] += 1
         else:
-            if case_num not in failed_cases:
-                stats['failed'] += 1
-                failed_cases.append(case_num)
+            stats['failed'] += 1
+            failed_cases.append(case_num)
         
-        # Update progress bar
+        # Update progress bar description
         if TQDM_AVAILABLE:
             iterator.set_postfix({
                 'OK': stats['successful'],
@@ -467,7 +457,6 @@ def run_batch_processing(skip_existing: bool = True):
     # Calculate elapsed time
     elapsed_time = time.time() - start_time
     elapsed_min = elapsed_time / 60
-    cases_processed = stats['total'] - stats['skipped']
     
     # Print summary
     print("\n" + "=" * 70)
@@ -475,38 +464,32 @@ def run_batch_processing(skip_existing: bool = True):
     print("=" * 70)
     
     print(f"\n[SUMMARY]")
-    print(f"  Total Cases:       {stats['total']}")
-    print(f"  Successful:        {stats['successful']} ({stats['successful']/stats['total']*100:.1f}%)")
-    print(f"  Skipped:           {stats['skipped']} (already processed)")
-    print(f"  Failed:            {stats['failed']}")
-    print(f"  Processing Time:   {elapsed_min:.1f} minutes")
-    if cases_processed > 0:
-        print(f"  Avg Time/Case:     {elapsed_time/cases_processed:.1f}s")
+    print(f"  Total Cases:      {stats['total']}")
+    print(f"  Successful:       {stats['successful']} ({stats['successful']/stats['total']*100:.1f}%)")
+    print(f"  Skipped:          {stats['skipped']} (already processed)")
+    print(f"  Failed:           {stats['failed']}")
+    print(f"  Processing Time:  {elapsed_min:.1f} minutes ({elapsed_time/max(1, stats['total']-stats['skipped']):.1f}s/case)")
     
     print(f"\n[STEP BREAKDOWN]")
-    print(f"  Inference:         {stats['inference_ok']} ok / {stats['inference_failed']} failed")
-    print(f"  Standardization:   {stats['standardize_ok']} ok / {stats['standardize_failed']} failed")
-    print(f"  Visualization:     {stats['viz_ok']} ok / {stats['viz_failed']} failed")
+    print(f"  Inference:        {stats['inference_ok']} ok / {stats['inference_failed']} failed")
+    print(f"  Standardization:  {stats['standardize_ok']} ok / {stats['standardize_failed']} failed")
+    print(f"  Visualization:    {stats['viz_ok']} ok / {stats['viz_failed']} failed")
     
     if failed_cases:
         print(f"\n[FAILED CASES]")
-        if len(failed_cases) <= 20:
-            print(f"  {failed_cases}")
-        else:
-            print(f"  {failed_cases[:20]}... (+{len(failed_cases)-20} more)")
+        print(f"  {failed_cases[:20]}{'...' if len(failed_cases) > 20 else ''}")
     
-    print(f"\n[OUTPUT LOCATION]")
+    print(f"\n[OUTPUT]")
     print(f"  {OUTPUT_DIR}")
     
     # Save processing log
     log_path = OUTPUT_DIR / "batch_processing_log.json"
     log_data = {
         'timestamp': datetime.now().isoformat(),
-        'version': 'V3.0 Advanced',
         'config': {
             'caries_conf': CARIES_CONF,
             'tooth_conf': TOOTH_CONF,
-            'input_source': str(INPUT_DIR),
+            'input_source': str(input_dir),
             'output_dir': str(OUTPUT_DIR),
         },
         'stats': stats,
@@ -528,57 +511,26 @@ def run_batch_processing(skip_existing: bool = True):
 if __name__ == "__main__":
     import argparse
     
-    parser = argparse.ArgumentParser(
-        description="V3.0 Advanced Batch Processing - 500 Cases",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Output Structure:
-  final_advanced_output/
-  +-- case N/
-      +-- case_N.png                 (Original Image)
-      +-- case_N_caries_mapping.json (Standardized JSON)
-      +-- case_N_advanced_viz.jpg    (Color-Coded Visualization)
-        """
-    )
-    parser.add_argument(
-        "--no-skip", 
-        action="store_true", 
-        help="Reprocess all cases (don't skip existing)"
-    )
-    parser.add_argument(
-        "--case", 
-        type=int, 
-        help="Process only a specific case number"
-    )
+    parser = argparse.ArgumentParser(description="V3.0 Full Batch Processing - 500 Cases")
+    parser.add_argument("--no-skip", action="store_true", help="Reprocess all cases (don't skip existing)")
+    parser.add_argument("--case", type=int, help="Process only specific case number")
     args = parser.parse_args()
     
     if args.case:
         # Process single case
-        print(f"\n[SINGLE CASE MODE] Processing case {args.case}")
-        cases = discover_cases(INPUT_DIR)
+        print(f"Processing single case: {args.case}")
+        input_dir = find_input_source()
+        cases = discover_cases(input_dir)
         case_item = next((c for c in cases if c[0] == args.case), None)
-        
         if case_item:
+            stats = {'total': 1, 'processed': 0, 'successful': 0, 'skipped': 0, 'failed': 0,
+                     'inference_ok': 0, 'inference_failed': 0, 'standardize_ok': 0,
+                     'standardize_failed': 0, 'viz_ok': 0, 'viz_failed': 0, 'copy_failed': 0}
             OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
             RAW_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-            
-            stats = {
-                'total': 1, 'processed': 0, 'successful': 0, 'skipped': 0, 
-                'failed': 0, 'inference_ok': 0, 'inference_failed': 0,
-                'standardize_ok': 0, 'standardize_failed': 0,
-                'viz_ok': 0, 'viz_failed': 0, 'copy_failed': 0
-            }
-            
-            success = process_single_case(
-                case_item[0], case_item[1], case_item[2], 
-                stats, skip_existing=not args.no_skip
-            )
-            
-            print(f"\nResult: {'SUCCESS' if success else 'FAILED'}")
-            if success:
-                print(f"Output: {OUTPUT_DIR / f'case {args.case}'}")
+            success = process_single_case(case_item[0], case_item[1], case_item[2], stats, skip_existing=not args.no_skip)
+            print(f"Result: {'SUCCESS' if success else 'FAILED'}")
         else:
-            print(f"[ERROR] Case {args.case} not found in {INPUT_DIR}")
+            print(f"Case {args.case} not found")
     else:
-        # Full batch processing
-        run_batch_processing(skip_existing=not args.no_skip)
+        run_batch_processing()

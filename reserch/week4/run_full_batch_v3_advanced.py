@@ -196,7 +196,7 @@ def step2_standardize(case_num: int) -> bool:
         sys.path.insert(0, str(WEEK4_DIR))
     
     try:
-        from standardize_week4 import convert_week4_to_week3_schema
+        from reserch.week4.standardize_week4 import convert_week4_to_week3_schema
     except ImportError:
         # Fallback to subprocess if import fails
         raw_json = RAW_OUTPUT_DIR / f"case_{case_num}_results.json"

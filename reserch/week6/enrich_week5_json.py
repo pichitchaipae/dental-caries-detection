@@ -32,7 +32,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional
 
-from multi_zone_classifier import classify_from_week_data
+from reserch.week6.multi_zone_classifier import classify_from_week_data
 
 # =============================================================================
 # Configuration

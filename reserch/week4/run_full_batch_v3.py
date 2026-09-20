@@ -197,7 +197,7 @@ def step2_standardize(case_num: int) -> bool:
     
     # Import standardization function
     try:
-        from standardize_week4 import convert_week4_to_week3_schema, save_json
+        from reserch.week4.standardize_week4 import convert_week4_to_week3_schema, save_json
     except ImportError:
         # Fallback: run the script
         raw_json = RAW_OUTPUT_DIR / f"case_{case_num}_results.json"

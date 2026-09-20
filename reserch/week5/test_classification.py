@@ -26,7 +26,7 @@ from tqdm import tqdm
 # Add week5 to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from caries_surface_classifier import (
+from reserch.week5.caries_surface_classifier import (
     classify_caries_surface,
     classify_caries_surface_detailed,
     get_surface_name,
@@ -38,7 +38,7 @@ from caries_surface_classifier import (
     is_upper_jaw
 )
 
-from visualization_utils import (
+from reserch.week5.visualization_utils import (
     visualize_pca_alignment,
     visualize_classification_zones,
     save_figure

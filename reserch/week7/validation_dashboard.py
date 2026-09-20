@@ -52,8 +52,8 @@ from matplotlib.collections import PatchCollection
 from matplotlib.lines import Line2D
 
 # ── Local imports (week7 directory) ──────────────────────────────────
-from xml_ground_truth_parser import parse_case_xmls
-from multi_zone_classifier import (
+from reserch.week7.xml_ground_truth_parser import parse_case_xmls
+from reserch.week7.multi_zone_classifier import (
     classify_multi_zone,
     _pca_rotation_angle_fixed,  # Task 1: fixed PCA orientation
     _rotation_matrix,
@@ -62,8 +62,8 @@ from multi_zone_classifier import (
     _is_upper_jaw,
     _get_quadrant,
 )
-from snodent_tooth_map import FDI_TOOTH_NAMES
-from evaluation_engine import (
+from reserch.week7.snodent_tooth_map import FDI_TOOTH_NAMES
+from reserch.week7.evaluation_engine import (
     normalize_surface,
     normalize_surface_fine,
     match_gt_to_predictions,

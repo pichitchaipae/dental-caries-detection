@@ -1,7 +1,7 @@
 """Quick test of refined multi-zone classifier."""
 import json, cv2, numpy as np
 from pathlib import Path
-from multi_zone_classifier import classify_from_week_data
+from reserch.week6.multi_zone_classifier import classify_from_week_data
 
 BASE = Path(r"C:\Users\jaopi\Desktop\SP")
 

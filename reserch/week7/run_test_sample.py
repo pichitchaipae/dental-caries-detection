@@ -17,8 +17,8 @@ from pathlib import Path
 WEEK7_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(WEEK7_DIR))
 
-from dental_caries_analysis import process_single_case
-from evaluation_engine import evaluate_single_case, evaluate_all_cases, soft_surface_match
+from reserch.week7.dental_caries_analysis import process_single_case
+from reserch.week7.evaluation_engine import evaluate_single_case, evaluate_all_cases, soft_surface_match
 
 
 BASE_DIR = WEEK7_DIR.parent

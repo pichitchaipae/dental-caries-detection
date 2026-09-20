@@ -39,9 +39,9 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 # Local modules (same directory)
-from xml_ground_truth_parser import parse_case_xmls
-from multi_zone_classifier import classify_multi_zone, classify_from_week_data
-from snodent_tooth_map import FDI_TOOTH_NAMES
+from reserch.week6.xml_ground_truth_parser import parse_case_xmls
+from reserch.week6.multi_zone_classifier import classify_multi_zone, classify_from_week_data
+from reserch.week6.snodent_tooth_map import FDI_TOOTH_NAMES
 
 # =============================================================================
 # Configuration

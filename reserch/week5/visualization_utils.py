@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import List, Dict, Tuple, Optional
 import math
 
-from caries_surface_classifier import (
+from reserch.week5.caries_surface_classifier import (
     compute_centroid,
     perform_pca,
     create_rotation_matrix,

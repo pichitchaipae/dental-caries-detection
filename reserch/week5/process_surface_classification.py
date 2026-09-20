@@ -34,7 +34,7 @@ from matplotlib.patches import Polygon as MplPolygon, Rectangle
 from matplotlib.collections import PatchCollection
 
 # Import local classifier module
-from caries_surface_classifier import (
+from reserch.week5.caries_surface_classifier import (
     classify_caries_surface,
     classify_caries_surface_detailed,
     get_surface_name,

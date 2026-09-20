@@ -52,10 +52,10 @@ from matplotlib.collections import PatchCollection
 from matplotlib.lines import Line2D
 
 # ── Local imports (same directory) ───────────────────────────────────
-from xml_ground_truth_parser import parse_case_xmls
-from multi_zone_classifier import classify_multi_zone
-from snodent_tooth_map import FDI_TOOTH_NAMES
-from evaluation_engine import (
+from reserch.week6.xml_ground_truth_parser import parse_case_xmls
+from reserch.week6.multi_zone_classifier import classify_multi_zone
+from reserch.week6.snodent_tooth_map import FDI_TOOTH_NAMES
+from reserch.week6.evaluation_engine import (
     normalize_surface,
     normalize_surface_fine,
     match_gt_to_predictions,
