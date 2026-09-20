@@ -1,23 +1,22 @@
 import type { ToothViewModel } from '../../features/analysis/analysisTypes';
 import { decodeMask } from '../../lib/rle';
 
-const SELECTED_COLOR = '#f97316';
+const SELECTION_COLOR = '#f97316';
 const CARIES_FILL = 'rgba(220, 38, 38, 0.35)';
 const SOUND_FILL = 'rgba(37, 99, 235, 0.15)';
 const AXIS_COLOR = '#16a34a';
+const SELECTION_HALO_PADDING = 6;
 
-export function drawBoundingBox(
-  ctx: CanvasRenderingContext2D,
-  tooth: ToothViewModel,
-  isSelected: boolean
-): void {
+// Each primitive draws exactly one tooth, in image-space (the renderer
+// applies the world/pan-zoom transform before calling these). FE-6.2's five
+// primitives: box, mask, axes, label, and a dedicated selection halo drawn
+// as a separate final pass rather than folded into drawBoundingBox.
+
+export function drawBoundingBox(ctx: CanvasRenderingContext2D, tooth: ToothViewModel): void {
   const [x, y, w, h] = tooth.bbox;
   ctx.save();
-  // Non-selected boxes use the tooth's stable identity color (FE-5.4
-  // `colorKey`), so a given tooth reads as the same color across the canvas
-  // and the Findings Table; selection always overrides to orange.
-  ctx.strokeStyle = isSelected ? SELECTED_COLOR : tooth.colorKey;
-  ctx.lineWidth = isSelected ? 3 : 1.5;
+  ctx.strokeStyle = tooth.colorKey;
+  ctx.lineWidth = 1.5;
   ctx.strokeRect(x, y, w, h);
   ctx.restore();
 }
@@ -75,5 +74,25 @@ export function drawLabel(ctx: CanvasRenderingContext2D, tooth: ToothViewModel):
   ctx.fillStyle = '#ffffff';
   ctx.strokeText(tooth.displayLabel, x, y - 6);
   ctx.fillText(tooth.displayLabel, x, y - 6);
+  ctx.restore();
+}
+
+// FE-6.2: dedicated emphasis primitive for the selected tooth, drawn as the
+// final pass over everything else (project-structure.md 10.1: "Selected
+// tooth drawn last with a halo") — a padded, glowing ring around the bbox,
+// distinct from that tooth's own identity-colored box.
+export function drawSelectionHalo(ctx: CanvasRenderingContext2D, tooth: ToothViewModel): void {
+  const [x, y, w, h] = tooth.bbox;
+  ctx.save();
+  ctx.shadowColor = 'rgba(249, 115, 22, 0.65)';
+  ctx.shadowBlur = 12;
+  ctx.strokeStyle = SELECTION_COLOR;
+  ctx.lineWidth = 3;
+  ctx.strokeRect(
+    x - SELECTION_HALO_PADDING,
+    y - SELECTION_HALO_PADDING,
+    w + SELECTION_HALO_PADDING * 2,
+    h + SELECTION_HALO_PADDING * 2
+  );
   ctx.restore();
 }

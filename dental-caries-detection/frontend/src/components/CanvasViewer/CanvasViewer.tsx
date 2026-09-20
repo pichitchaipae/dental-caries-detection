@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ToothViewModel } from '../../features/analysis/analysisTypes';
 import { useCanvasRenderer } from './useCanvasRenderer';
-import { defaultLayerVisibility, type LayerKey } from './layerState';
+import { useLayerState, type LayerKey } from './layerState';
 
 interface CanvasViewerProps {
   imageBase64: string;
@@ -10,9 +10,6 @@ interface CanvasViewerProps {
   selectedToothId: number | null;
   onSelectTooth: (id: number | null) => void;
 }
-
-const CANVAS_WIDTH = 960;
-const CANVAS_HEIGHT = 540;
 
 const LAYER_LABELS: Record<LayerKey, string> = {
   boxes: 'Boxes',
@@ -30,7 +27,7 @@ export function CanvasViewer({
 }: CanvasViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [image, setImage] = useState<HTMLImageElement | null>(null);
-  const [layers, setLayers] = useState(defaultLayerVisibility);
+  const { layers, toggle } = useLayerState();
   const [brightness, setBrightness] = useState(100);
   const [contrast, setContrast] = useState(100);
 
@@ -55,7 +52,7 @@ export function CanvasViewer({
     };
   }, [imageBase64]);
 
-  useCanvasRenderer({
+  const { fitToView, actualSize } = useCanvasRenderer({
     canvasRef,
     image,
     imageSize,
@@ -68,26 +65,49 @@ export function CanvasViewer({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-slate-600">
-        {(Object.keys(layers) as LayerKey[]).map((key) => (
-          <label key={key} className="flex cursor-pointer items-center gap-1.5">
-            <input
-              type="checkbox"
-              checked={layers[key]}
-              onChange={() => setLayers((prev) => ({ ...prev, [key]: !prev[key] }))}
-              className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
-            />
-            {LAYER_LABELS[key]}
-          </label>
-        ))}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-slate-600">
+          {(Object.keys(layers) as LayerKey[]).map((key) => (
+            <label key={key} className="flex cursor-pointer items-center gap-1.5">
+              <input
+                type="checkbox"
+                checked={layers[key]}
+                onChange={() => toggle(key)}
+                className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+              />
+              {LAYER_LABELS[key]}
+            </label>
+          ))}
+        </div>
+        <div className="flex items-center gap-2 text-sm">
+          <button
+            type="button"
+            onClick={fitToView}
+            className="rounded-md border border-slate-300 px-2.5 py-1 font-medium text-slate-600 transition hover:bg-slate-50"
+          >
+            Fit
+          </button>
+          <button
+            type="button"
+            onClick={actualSize}
+            className="rounded-md border border-slate-300 px-2.5 py-1 font-medium text-slate-600 transition hover:bg-slate-50"
+          >
+            1:1
+          </button>
+        </div>
       </div>
 
-      <canvas
-        ref={canvasRef}
-        width={CANVAS_WIDTH}
-        height={CANVAS_HEIGHT}
-        className="aspect-video w-full cursor-grab touch-none rounded-lg bg-slate-950 active:cursor-grabbing"
-      />
+      {/* This wrapper defines the visible box; the canvas fills it exactly
+          and useCanvasRenderer sizes its backing store to match
+          (container CSS size x devicePixelRatio) via ResizeObserver, so the
+          image stays crisp on HiDPI screens instead of being CSS-upscaled
+          from a fixed low-res backing store. */}
+      <div className="aspect-video w-full overflow-hidden rounded-lg bg-slate-950">
+        <canvas
+          ref={canvasRef}
+          className="h-full w-full cursor-grab touch-none active:cursor-grabbing"
+        />
+      </div>
 
       <div className="flex flex-col gap-2 text-sm text-slate-600">
         <label className="flex items-center gap-3">

@@ -141,7 +141,7 @@ export function AnalysisView() {
               )}
             </div>
           ) : (
-            <ImageUploader onFileSelected={handleFileSelected} />
+            <ImageUploader onValidFile={handleFileSelected} onClear={() => setSubmitError(null)} />
           )}
         </section>
 
@@ -209,7 +209,7 @@ export function AnalysisView() {
       {state.phase === 'done' && viewModel && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="lg:col-span-1">
-            <ToothDetailPanel tooth={selectedTooth} />
+            <ToothDetailPanel tooth={selectedTooth} onClose={() => setSelectedToothId(null)} />
           </div>
           <div className="lg:col-span-2">
             <FindingsTable

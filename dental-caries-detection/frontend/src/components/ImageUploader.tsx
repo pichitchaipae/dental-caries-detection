@@ -2,42 +2,54 @@ import { useCallback, useRef, useState } from 'react';
 import { preflightOpg } from '../lib/validation';
 
 interface ImageUploaderProps {
-  onFileSelected: (file: File) => void;
+  onValidFile: (file: File, meta: { width: number; height: number }) => void;
+  // Fires when the clinician dismisses a pre-flight validation error. This
+  // component doesn't hold a "selected" state of its own (AnalysisView owns
+  // that, so the thumbnail persists past processing/done/fail) — `onClear`
+  // exists for the parent to react to, e.g. clearing an unrelated stale error.
+  onClear: () => void;
+  disabled?: boolean;
 }
 
-// File picking + pre-flight validation only. Preview and submit now live in
-// AnalysisView (FE-5.1), since the thumbnail needs to persist past this
-// component's lifetime (it unmounts once a file is selected).
-export function ImageUploader({ onFileSelected }: ImageUploaderProps) {
+export function ImageUploader({ onValidFile, onClear, disabled = false }: ImageUploaderProps) {
   const [error, setError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = useCallback(
     (file: File | undefined | null) => {
-      if (!file) return;
+      if (!file || disabled) return;
       setError(null);
       void preflightOpg(file).then((result) => {
         if (result.ok) {
-          onFileSelected(file);
+          onValidFile(file, { width: result.width, height: result.height });
         } else {
           setError(result.reason);
         }
       });
     },
-    [onFileSelected]
+    [onValidFile, disabled]
   );
+
+  const handleDismissError = useCallback(() => {
+    setError(null);
+    onClear();
+  }, [onClear]);
 
   return (
     <div className="flex flex-col gap-3">
       <div
+        aria-disabled={disabled}
         className={
           'flex flex-col items-center gap-3 rounded-xl border-2 border-dashed px-6 py-10 text-center transition-colors ' +
-          (isDragging
-            ? 'border-brand-500 bg-brand-50'
-            : 'border-slate-300 bg-slate-50 hover:border-brand-400')
+          (disabled
+            ? 'cursor-not-allowed border-slate-200 bg-slate-50 opacity-60'
+            : isDragging
+              ? 'cursor-pointer border-brand-500 bg-brand-50'
+              : 'cursor-pointer border-slate-300 bg-slate-50 hover:border-brand-400')
         }
         onDragOver={(event) => {
+          if (disabled) return;
           event.preventDefault();
           setIsDragging(true);
         }}
@@ -45,13 +57,16 @@ export function ImageUploader({ onFileSelected }: ImageUploaderProps) {
         onDrop={(event) => {
           event.preventDefault();
           setIsDragging(false);
+          if (disabled) return;
           handleFile(event.dataTransfer.files[0]);
         }}
-        onClick={() => inputRef.current?.click()}
+        onClick={() => {
+          if (!disabled) inputRef.current?.click();
+        }}
         role="button"
-        tabIndex={0}
+        tabIndex={disabled ? -1 : 0}
         onKeyDown={(event) => {
-          if (event.key === 'Enter' || event.key === ' ') inputRef.current?.click();
+          if (!disabled && (event.key === 'Enter' || event.key === ' ')) inputRef.current?.click();
         }}
       >
         <svg
@@ -74,8 +89,9 @@ export function ImageUploader({ onFileSelected }: ImageUploaderProps) {
         </div>
         <button
           type="button"
+          disabled={disabled}
           onClick={() => inputRef.current?.click()}
-          className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700"
+          className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-slate-300"
         >
           Select File
         </button>
@@ -83,15 +99,25 @@ export function ImageUploader({ onFileSelected }: ImageUploaderProps) {
           ref={inputRef}
           type="file"
           accept="image/jpeg,image/png"
+          disabled={disabled}
           className="hidden"
           onChange={(event) => handleFile(event.target.files?.[0])}
         />
       </div>
 
       {error && (
-        <p role="alert" className="text-sm font-medium text-danger-600">
-          {error}
-        </p>
+        <div className="flex items-center justify-between gap-2">
+          <p role="alert" className="text-sm font-medium text-danger-600">
+            {error}
+          </p>
+          <button
+            type="button"
+            onClick={handleDismissError}
+            className="shrink-0 text-xs font-medium text-slate-400 hover:text-slate-600"
+          >
+            Dismiss
+          </button>
+        </div>
       )}
     </div>
   );
