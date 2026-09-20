@@ -1,0 +1,88 @@
+# Phase 1: db, pgadmin, backend, frontend. The ml-service is added in Phase 2
+# (it will also mount shared_data).
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # Developer console only; safe to remove for an end-user deployment.
+  pgadmin:
+    image: dpage/pgadmin4
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+    ports:
+      - "127.0.0.1:5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      - db
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    env_file: .env
+    environment:
+      SHARED_DIR: /shared
+    ports:
+      - "0.0.0.0:8000:8000"
+    volumes:
+      - shared_data:/shared
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      # node:22-slim ships without wget/curl, so probe with Node's fetch.
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://localhost:8000/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      # VITE_* values are baked into the bundle at build time; rebuild on change.
+      args:
+        VITE_FRONTEND_API_BASE_URL: ${FRONTEND_API_BASE_URL}
+        VITE_POLL_INTERVAL_MS: ${VITE_POLL_INTERVAL_MS}
+    env_file: .env
+    ports:
+      - "0.0.0.0:3000:3000"
+    depends_on:
+      - backend
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://localhost:3000').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  db_data:
+  pgadmin_data:
+  shared_data:

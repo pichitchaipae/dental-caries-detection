@@ -1,0 +1,19 @@
+# Dependencies & build output
+node_modules/
+dist/
+build/
+coverage/
+
+# Environment (copy from .env.example)
+.env
+*.local
+
+# Frontend tooling cache
+frontend/.vite/
+
+# Local dev mount of the shared working volume, if any
+shared/
+
+# OS
+.DS_Store
+Thumbs.db
