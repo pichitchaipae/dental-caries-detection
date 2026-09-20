@@ -1,0 +1,110 @@
+import { useEffect, useRef, useState } from 'react';
+import type { Tooth } from '../../domain/inference';
+import { useCanvasRenderer } from './useCanvasRenderer';
+import { defaultLayerVisibility, type LayerKey } from './layerState';
+
+interface CanvasViewerProps {
+  imageBase64: string;
+  imageSize: { width: number; height: number };
+  teeth: Tooth[];
+  selectedToothId: number | null;
+  onSelectTooth: (id: number | null) => void;
+}
+
+const CANVAS_WIDTH = 960;
+const CANVAS_HEIGHT = 540;
+
+const LAYER_LABELS: Record<LayerKey, string> = {
+  boxes: 'Boxes',
+  masks: 'Masks',
+  axes: 'Axes',
+  labels: 'Labels',
+};
+
+export function CanvasViewer({
+  imageBase64,
+  imageSize,
+  teeth,
+  selectedToothId,
+  onSelectTooth,
+}: CanvasViewerProps) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [image, setImage] = useState<HTMLImageElement | null>(null);
+  const [layers, setLayers] = useState(defaultLayerVisibility);
+  const [brightness, setBrightness] = useState(100);
+  const [contrast, setContrast] = useState(100);
+
+  useEffect(() => {
+    const img = new Image();
+    img.onload = () => setImage(img);
+    img.src = imageBase64;
+    return () => setImage(null);
+  }, [imageBase64]);
+
+  useCanvasRenderer({
+    canvasRef,
+    image,
+    imageSize,
+    teeth,
+    selectedToothId,
+    layers,
+    imageFilter: { brightness, contrast },
+    onSelectTooth,
+  });
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-slate-600">
+        {(Object.keys(layers) as LayerKey[]).map((key) => (
+          <label key={key} className="flex cursor-pointer items-center gap-1.5">
+            <input
+              type="checkbox"
+              checked={layers[key]}
+              onChange={() => setLayers((prev) => ({ ...prev, [key]: !prev[key] }))}
+              className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+            />
+            {LAYER_LABELS[key]}
+          </label>
+        ))}
+      </div>
+
+      <canvas
+        ref={canvasRef}
+        width={CANVAS_WIDTH}
+        height={CANVAS_HEIGHT}
+        className="aspect-video w-full cursor-grab touch-none rounded-lg bg-slate-950 active:cursor-grabbing"
+      />
+
+      <div className="flex flex-col gap-2 text-sm text-slate-600">
+        <label className="flex items-center gap-3">
+          <span className="w-20 shrink-0">Brightness</span>
+          <input
+            type="range"
+            min={50}
+            max={150}
+            value={brightness}
+            onChange={(event) => setBrightness(Number(event.target.value))}
+            className="h-1.5 flex-1 accent-brand-600"
+          />
+          <span className="w-10 shrink-0 text-right tabular-nums">{brightness}%</span>
+        </label>
+        <label className="flex items-center gap-3">
+          <span className="w-20 shrink-0">Contrast</span>
+          <input
+            type="range"
+            min={50}
+            max={150}
+            value={contrast}
+            onChange={(event) => setContrast(Number(event.target.value))}
+            className="h-1.5 flex-1 accent-brand-600"
+          />
+          <span className="w-10 shrink-0 text-right tabular-nums">{contrast}%</span>
+        </label>
+      </div>
+
+      <p className="text-xs text-slate-400">
+        Scroll to zoom, drag to pan, click a tooth to select it.
+      </p>
+    </div>
+  );
+}

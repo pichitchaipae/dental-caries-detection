@@ -1,0 +1,20 @@
+@import 'tailwindcss';
+
+/* Brand tokens as Tailwind v4 theme variables, so e.g. `bg-brand-600` and
+   `text-brand-600` are generated utility classes. Values chosen to match
+   the design reference (dental-caries-ai-mockup) while staying close to
+   Tailwind's stock blue/slate scale for maintainability. */
+@theme {
+  --color-brand-50: #eff6ff;
+  --color-brand-100: #dbeafe;
+  --color-brand-600: #2563eb;
+  --color-brand-700: #1d4ed8;
+  --color-danger-50: #fef2f2;
+  --color-danger-600: #dc2626;
+  --color-success-500: #22c55e;
+  --color-warning-500: #f59e0b;
+}
+
+body {
+  @apply bg-slate-50 text-slate-900;
+}

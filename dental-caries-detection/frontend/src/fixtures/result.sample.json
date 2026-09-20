@@ -1,0 +1,95 @@
+{
+  "status": "done",
+  "image_base64": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+  "data": {
+    "meta": {
+      "processed_at": "2026-08-30T14:20:00Z",
+      "models": { "detector": "det-v1.3", "classifier": "surf-v1.1" },
+      "timings_ms": { "detection": 24000, "pca": 40, "classification": 6000 }
+    },
+    "image": { "width": 1600, "height": 800 },
+    "teeth": [
+      {
+        "id": 0,
+        "fdi": 16,
+        "confidence": 0.95,
+        "bbox": [220, 300, 120, 160],
+        "mask": {
+          "encoding": "polygon",
+          "data": [
+            [250, 300],
+            [310, 300],
+            [340, 330],
+            [340, 430],
+            [310, 460],
+            [250, 460],
+            [220, 430],
+            [220, 330]
+          ]
+        },
+        "axes": { "major": [0.98, -0.12], "minor": [0.12, 0.98], "rotation_deg": -6.9 },
+        "surfaces": [
+          { "name": "mesial", "label": "sound", "probability": 0.04 },
+          { "name": "distal", "label": "sound", "probability": 0.06 },
+          { "name": "occlusal", "label": "sound", "probability": 0.09 },
+          { "name": "buccal", "label": "sound", "probability": 0.03 },
+          { "name": "lingual", "label": "sound", "probability": 0.05 }
+        ]
+      },
+      {
+        "id": 1,
+        "fdi": 36,
+        "confidence": 0.97,
+        "bbox": [740, 340, 130, 170],
+        "mask": {
+          "encoding": "polygon",
+          "data": [
+            [772, 340],
+            [838, 340],
+            [870, 372],
+            [870, 478],
+            [838, 510],
+            [772, 510],
+            [740, 478],
+            [740, 372]
+          ]
+        },
+        "axes": { "major": [1, 0], "minor": [0, 1], "rotation_deg": 0 },
+        "surfaces": [
+          { "name": "mesial", "label": "sound", "probability": 0.05 },
+          { "name": "distal", "label": "sound", "probability": 0.07 },
+          { "name": "occlusal", "label": "caries", "probability": 0.88 },
+          { "name": "buccal", "label": "sound", "probability": 0.06 },
+          { "name": "lingual", "label": "sound", "probability": 0.04 }
+        ]
+      },
+      {
+        "id": 2,
+        "fdi": 46,
+        "confidence": 0.93,
+        "bbox": [1260, 310, 120, 160],
+        "mask": {
+          "encoding": "polygon",
+          "data": [
+            [1290, 310],
+            [1350, 310],
+            [1380, 340],
+            [1380, 440],
+            [1350, 470],
+            [1290, 470],
+            [1260, 440],
+            [1260, 340]
+          ]
+        },
+        "axes": { "major": [0.97, 0.14], "minor": [-0.14, 0.97], "rotation_deg": 8.2 },
+        "surfaces": [
+          { "name": "mesial", "label": "sound", "probability": 0.08 },
+          { "name": "distal", "label": "caries", "probability": 0.71 },
+          { "name": "occlusal", "label": "sound", "probability": 0.15 },
+          { "name": "buccal", "label": "sound", "probability": 0.05 },
+          { "name": "lingual", "label": "sound", "probability": 0.06 }
+        ]
+      }
+    ]
+  }
+}
