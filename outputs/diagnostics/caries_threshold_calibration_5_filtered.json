@@ -1,0 +1,577 @@
+{
+  "0.03": {
+    "cases_evaluated": 5,
+    "exact_case_matches": 0,
+    "true_positives": 11,
+    "false_positives": 10,
+    "false_negatives": 20,
+    "predicted_teeth": 21,
+    "expected_teeth": 31,
+    "case_results": [
+      {
+        "case_id": "case 1",
+        "expected": [
+          "15",
+          "35",
+          "45",
+          "46"
+        ],
+        "predicted": [
+          "25",
+          "35",
+          "44",
+          "45"
+        ],
+        "exact_match": false,
+        "false_positives": [
+          "25",
+          "44"
+        ],
+        "false_negatives": [
+          "15",
+          "46"
+        ]
+      },
+      {
+        "case_id": "case 2",
+        "expected": [
+          "14",
+          "15",
+          "24",
+          "25"
+        ],
+        "predicted": [
+          "16",
+          "37"
+        ],
+        "exact_match": false,
+        "false_positives": [
+          "16",
+          "37"
+        ],
+        "false_negatives": [
+          "14",
+          "15",
+          "24",
+          "25"
+        ]
+      },
+      {
+        "case_id": "case 3",
+        "expected": [
+          "14",
+          "16",
+          "26",
+          "27",
+          "35",
+          "46",
+          "47",
+          "48"
+        ],
+        "predicted": [
+          "14",
+          "16",
+          "25",
+          "27",
+          "46",
+          "47",
+          "48"
+        ],
+        "exact_match": false,
+        "false_positives": [
+          "25"
+        ],
+        "false_negatives": [
+          "26",
+          "35"
+        ]
+      },
+      {
+        "case_id": "case 4",
+        "expected": [
+          "14",
+          "16",
+          "17",
+          "18",
+          "37",
+          "46",
+          "47",
+          "48"
+        ],
+        "predicted": [
+          "16",
+          "25",
+          "27",
+          "28",
+          "36",
+          "46"
+        ],
+        "exact_match": false,
+        "false_positives": [
+          "25",
+          "27",
+          "28",
+          "36"
+        ],
+        "false_negatives": [
+          "14",
+          "17",
+          "18",
+          "37",
+          "47",
+          "48"
+        ]
+      },
+      {
+        "case_id": "case 5",
+        "expected": [
+          "16",
+          "17",
+          "25",
+          "26",
+          "28",
+          "34",
+          "45"
+        ],
+        "predicted": [
+          "24",
+          "28"
+        ],
+        "exact_match": false,
+        "false_positives": [
+          "24"
+        ],
+        "false_negatives": [
+          "16",
+          "17",
+          "25",
+          "26",
+          "34",
+          "45"
+        ]
+      }
+    ],
+    "precision": 0.5238095238095238,
+    "recall": 0.3548387096774194,
+    "f1": 0.4230769230769231,
+    "exact_match_rate": 0.0
+  },
+  "0.01": {
+    "cases_evaluated": 5,
+    "exact_case_matches": 0,
+    "true_positives": 23,
+    "false_positives": 31,
+    "false_negatives": 8,
+    "predicted_teeth": 54,
+    "expected_teeth": 31,
+    "case_results": [
+      {
+        "case_id": "case 1",
+        "expected": [
+          "15",
+          "35",
+          "45",
+          "46"
+        ],
+        "predicted": [
+          "15",
+          "16",
+          "25",
+          "26",
+          "27",
+          "34",
+          "35",
+          "37",
+          "38",
+          "43",
+          "44",
+          "45",
+          "46",
+          "47"
+        ],
+        "exact_match": false,
+        "false_positives": [
+          "16",
+          "25",
+          "26",
+          "27",
+          "34",
+          "37",
+          "38",
+          "43",
+          "44",
+          "47"
+        ],
+        "false_negatives": []
+      },
+      {
+        "case_id": "case 2",
+        "expected": [
+          "14",
+          "15",
+          "24",
+          "25"
+        ],
+        "predicted": [
+          "14",
+          "15",
+          "16",
+          "17",
+          "23",
+          "24",
+          "25",
+          "26",
+          "35",
+          "36",
+          "37",
+          "45",
+          "47"
+        ],
+        "exact_match": false,
+        "false_positives": [
+          "16",
+          "17",
+          "23",
+          "26",
+          "35",
+          "36",
+          "37",
+          "45",
+          "47"
+        ],
+        "false_negatives": []
+      },
+      {
+        "case_id": "case 3",
+        "expected": [
+          "14",
+          "16",
+          "26",
+          "27",
+          "35",
+          "46",
+          "47",
+          "48"
+        ],
+        "predicted": [
+          "14",
+          "16",
+          "17",
+          "24",
+          "25",
+          "27",
+          "35",
+          "46",
+          "47",
+          "48"
+        ],
+        "exact_match": false,
+        "false_positives": [
+          "17",
+          "24",
+          "25"
+        ],
+        "false_negatives": [
+          "26"
+        ]
+      },
+      {
+        "case_id": "case 4",
+        "expected": [
+          "14",
+          "16",
+          "17",
+          "18",
+          "37",
+          "46",
+          "47",
+          "48"
+        ],
+        "predicted": [
+          "14",
+          "15",
+          "16",
+          "25",
+          "26",
+          "27",
+          "28",
+          "34",
+          "35",
+          "36",
+          "37",
+          "46",
+          "47"
+        ],
+        "exact_match": false,
+        "false_positives": [
+          "15",
+          "25",
+          "26",
+          "27",
+          "28",
+          "34",
+          "35",
+          "36"
+        ],
+        "false_negatives": [
+          "17",
+          "18",
+          "48"
+        ]
+      },
+      {
+        "case_id": "case 5",
+        "expected": [
+          "16",
+          "17",
+          "25",
+          "26",
+          "28",
+          "34",
+          "45"
+        ],
+        "predicted": [
+          "17",
+          "24",
+          "25",
+          "28"
+        ],
+        "exact_match": false,
+        "false_positives": [
+          "24"
+        ],
+        "false_negatives": [
+          "16",
+          "26",
+          "34",
+          "45"
+        ]
+      }
+    ],
+    "precision": 0.42592592592592593,
+    "recall": 0.7419354838709677,
+    "f1": 0.5411764705882354,
+    "exact_match_rate": 0.0
+  },
+  "0.005": {
+    "cases_evaluated": 5,
+    "exact_case_matches": 0,
+    "true_positives": 25,
+    "false_positives": 43,
+    "false_negatives": 6,
+    "predicted_teeth": 68,
+    "expected_teeth": 31,
+    "case_results": [
+      {
+        "case_id": "case 1",
+        "expected": [
+          "15",
+          "35",
+          "45",
+          "46"
+        ],
+        "predicted": [
+          "15",
+          "16",
+          "17",
+          "24",
+          "25",
+          "26",
+          "27",
+          "34",
+          "35",
+          "36",
+          "37",
+          "38",
+          "43",
+          "44",
+          "45",
+          "46",
+          "47"
+        ],
+        "exact_match": false,
+        "false_positives": [
+          "16",
+          "17",
+          "24",
+          "25",
+          "26",
+          "27",
+          "34",
+          "36",
+          "37",
+          "38",
+          "43",
+          "44",
+          "47"
+        ],
+        "false_negatives": []
+      },
+      {
+        "case_id": "case 2",
+        "expected": [
+          "14",
+          "15",
+          "24",
+          "25"
+        ],
+        "predicted": [
+          "14",
+          "15",
+          "16",
+          "17",
+          "23",
+          "24",
+          "25",
+          "26",
+          "35",
+          "36",
+          "37",
+          "45",
+          "46",
+          "47"
+        ],
+        "exact_match": false,
+        "false_positives": [
+          "16",
+          "17",
+          "23",
+          "26",
+          "35",
+          "36",
+          "37",
+          "45",
+          "46",
+          "47"
+        ],
+        "false_negatives": []
+      },
+      {
+        "case_id": "case 3",
+        "expected": [
+          "14",
+          "16",
+          "26",
+          "27",
+          "35",
+          "46",
+          "47",
+          "48"
+        ],
+        "predicted": [
+          "13",
+          "14",
+          "16",
+          "17",
+          "24",
+          "25",
+          "27",
+          "35",
+          "37",
+          "38",
+          "44",
+          "45",
+          "46",
+          "47",
+          "48"
+        ],
+        "exact_match": false,
+        "false_positives": [
+          "13",
+          "17",
+          "24",
+          "25",
+          "37",
+          "38",
+          "44",
+          "45"
+        ],
+        "false_negatives": [
+          "26"
+        ]
+      },
+      {
+        "case_id": "case 4",
+        "expected": [
+          "14",
+          "16",
+          "17",
+          "18",
+          "37",
+          "46",
+          "47",
+          "48"
+        ],
+        "predicted": [
+          "13",
+          "14",
+          "15",
+          "16",
+          "23",
+          "25",
+          "26",
+          "27",
+          "28",
+          "34",
+          "35",
+          "36",
+          "37",
+          "44",
+          "46",
+          "47",
+          "48"
+        ],
+        "exact_match": false,
+        "false_positives": [
+          "13",
+          "15",
+          "23",
+          "25",
+          "26",
+          "27",
+          "28",
+          "34",
+          "35",
+          "36",
+          "44"
+        ],
+        "false_negatives": [
+          "17",
+          "18"
+        ]
+      },
+      {
+        "case_id": "case 5",
+        "expected": [
+          "16",
+          "17",
+          "25",
+          "26",
+          "28",
+          "34",
+          "45"
+        ],
+        "predicted": [
+          "17",
+          "24",
+          "25",
+          "28",
+          "45"
+        ],
+        "exact_match": false,
+        "false_positives": [
+          "24"
+        ],
+        "false_negatives": [
+          "16",
+          "26",
+          "34"
+        ]
+      }
+    ],
+    "precision": 0.36764705882352944,
+    "recall": 0.8064516129032258,
+    "f1": 0.5050505050505051,
+    "exact_match_rate": 0.0
+  }
+}

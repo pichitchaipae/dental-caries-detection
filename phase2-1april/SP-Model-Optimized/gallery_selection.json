@@ -1,0 +1,56 @@
+[
+  {
+    "case_id": 446,
+    "tooth_id": "25",
+    "caries_pts": 95,
+    "surface": "Occlusal"
+  },
+  {
+    "case_id": 392,
+    "tooth_id": "26",
+    "caries_pts": 883,
+    "surface": "Occlusal"
+  },
+  {
+    "case_id": 269,
+    "tooth_id": "28",
+    "caries_pts": 2340,
+    "surface": "Occlusal"
+  },
+  {
+    "case_id": 167,
+    "tooth_id": "16",
+    "caries_pts": 30,
+    "surface": "Mesial"
+  },
+  {
+    "case_id": 168,
+    "tooth_id": "14",
+    "caries_pts": 119,
+    "surface": "Mesial"
+  },
+  {
+    "case_id": 257,
+    "tooth_id": "16",
+    "caries_pts": 312,
+    "surface": "Mesial"
+  },
+  {
+    "case_id": 193,
+    "tooth_id": "46",
+    "caries_pts": 32,
+    "surface": "Distal"
+  },
+  {
+    "case_id": 401,
+    "tooth_id": "25",
+    "caries_pts": 139,
+    "surface": "Distal"
+  },
+  {
+    "case_id": 483,
+    "tooth_id": "15",
+    "caries_pts": 324,
+    "surface": "Distal"
+  }
+]

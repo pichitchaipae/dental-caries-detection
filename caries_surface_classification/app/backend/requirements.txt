@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+python-multipart
+torch
+torchvision
+opencv-python-headless
+ultralytics
+scikit-learn
+joblib
+pandas
+# detectron2 is excluded: requires CUDA + GCC build toolchain.
+# The pipeline handles its absence gracefully (MODEL_DEPENDENCY_MISSING error).

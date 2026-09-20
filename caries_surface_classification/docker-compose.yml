@@ -1,0 +1,48 @@
+# ──────────────────────────────────────────────────────────────
+#  Caries Surface Classification — Docker Compose
+#
+#  Usage:
+#    docker compose up --build        # First run (builds images)
+#    docker compose up                # Subsequent runs
+#    docker compose down              # Stop containers
+#
+#  Access:
+#    Frontend (UI):   http://localhost
+#    Backend API:     http://localhost:8000
+# ──────────────────────────────────────────────────────────────
+
+services:
+
+  # ── Backend: FastAPI ML inference server ───────────────────
+  backend:
+    build:
+      context: ./app/backend
+      dockerfile: Dockerfile
+    container_name: caries_backend
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persist annotated output images between restarts
+      - ./app/backend/outputs:/app/outputs
+    environment:
+      - KMP_DUPLICATE_LIB_OK=TRUE
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # ── Frontend: React SPA served by nginx ────────────────────
+  frontend:
+    build:
+      context: ./app/frontend
+      dockerfile: Dockerfile
+    container_name: caries_frontend
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_started
+    restart: unless-stopped

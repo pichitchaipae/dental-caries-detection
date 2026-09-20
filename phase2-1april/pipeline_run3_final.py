@@ -5,7 +5,8 @@ pipeline_run3_final.py
 Self-contained Run 3 dental caries surface classification pipeline.
 
 Usage:
-    python pipeline_run3_final.py
+    python pipeline_run3_final.py              # Full pipeline
+    python pipeline_run3_final.py --dry-run    # Validate without writing output
 
 Steps:
     1. Extract 13 geometric features from 500 cases
@@ -19,16 +20,19 @@ Steps:
 # =========================================================
 # Imports
 # =========================================================
+import argparse
 import os
 import sys
 import gc
 import json
 import logging
 import math
+import time
 import warnings
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import ijson
 
@@ -52,6 +56,33 @@ from sklearn.metrics import (
     recall_score,
     f1_score,
 )
+
+
+# =========================================================
+# Public API
+# =========================================================
+__all__ = [
+    # Constants
+    "FEATURE_COLS", "VALID_SURFACES", "MODEL_PATH",
+    "LEFT_BOUND", "RIGHT_BOUND",
+    "SEG_DIR", "CARIES_DIR", "GT_ROOT",
+    # XML Parsing
+    "parse_case_ground_truth",
+    # Geometry & PCA
+    "perform_pca", "rotate", "get_bbox", "get_quadrant",
+    "remove_small_clusters", "split_caries_into_lesions",
+    # Feature Extraction
+    "_extract_ml_feature_dict",
+    # Dataset & Training
+    "create_ml_dataset", "train_classify_ml",
+    # Classification
+    "classify_ml", "classify_xthird",
+    # Pipeline Steps
+    "process_case_ml", "evaluate_version",
+    "plot_evaluation_results", "plot_feature_importance",
+    # Utilities
+    "_progress_bar",
+]
 
 
 # =========================================================
@@ -81,6 +112,9 @@ MAX_TILT_DEG = 45.0
 
 MIN_CLUSTER_SIZE = 15
 """Minimum connected-component size for noise removal."""
+
+DBSCAN_EPS = 2.0
+"""DBSCAN neighbourhood radius for pixel-grid clustering."""
 
 LEFT_BOUND = 0.40
 """X-thirds left boundary (0.00 - 0.40 = left zone)."""
@@ -156,7 +190,10 @@ DISPLAY_NAME_TO_SURFACE = {
 
 SNODENT_TO_FDI = {
     "161006D": "11", "160842D": "12", "160288D": "13", "161286D": "14",
-    "160450D": "15", "160770D": "16", "161204D": "17", "160618D": "18",
+    # [FIX] Tooth 16: was incorrectly "160770D" (same as tooth 46).
+    #       Corrected to "161010D" — verified from actual dataset XML:
+    #       case 102 → displayName="Permanent upper right first molar tooth"
+    "160450D": "15", "161010D": "16", "161204D": "17", "160618D": "18",
     "160194D": "21", "160132D": "22", "160506D": "23", "161340D": "24",
     "160682D": "25", "161074D": "26", "160386D": "27", "160922D": "28",
     "161136D": "31", "160556D": "32", "160068D": "33", "160326D": "34",
@@ -287,17 +324,43 @@ def parse_case_ground_truth(case_folder):
 # PCA & Geometry Helpers
 # =========================================================
 
-def is_upper_jaw(tooth_id):
-    """Check whether a tooth belongs to the upper jaw (quadrant 1 or 2)."""
-    return int(str(tooth_id)[0]) in [1, 2]
+def is_upper_jaw(tooth_id: Union[str, int]) -> bool:
+    """Check whether a tooth belongs to the upper jaw (quadrant 1 or 2).
+
+    Args:
+        tooth_id: FDI tooth identifier (e.g. '16' or 16).
+
+    Returns:
+        True if upper jaw, False otherwise.
+
+    Raises:
+        ValueError: If tooth_id is empty or non-numeric.
+    """
+    tid_str = str(tooth_id).strip()
+    if not tid_str or not tid_str[0].isdigit():
+        raise ValueError(f"Invalid tooth_id: {tooth_id!r}")
+    return int(tid_str[0]) in (1, 2)
 
 
-def get_quadrant(tooth_id):
-    """Extract the FDI quadrant (1-4) from a tooth identifier."""
-    return int(str(tooth_id)[0])
+def get_quadrant(tooth_id: Union[str, int]) -> int:
+    """Extract the FDI quadrant (1-4) from a tooth identifier.
+
+    Args:
+        tooth_id: FDI tooth identifier (e.g. '16' or 16).
+
+    Returns:
+        Quadrant number (1-4).
+
+    Raises:
+        ValueError: If tooth_id is empty or non-numeric.
+    """
+    tid_str = str(tooth_id).strip()
+    if not tid_str or not tid_str[0].isdigit():
+        raise ValueError(f"Invalid tooth_id: {tooth_id!r}")
+    return int(tid_str[0])
 
 
-def get_bbox(pts):
+def get_bbox(pts: np.ndarray) -> Tuple[float, float, float, float]:
     """Compute the axis-aligned bounding box: (x_min, y_min, width, height)."""
     # [OPT] asarray + float32: avoids copy if already float32 ndarray;
     #        halves memory vs float64 for large coordinate arrays.
@@ -306,7 +369,7 @@ def get_bbox(pts):
     return bbox_min[0], bbox_min[1], bbox_max[0] - bbox_min[0], bbox_max[1] - bbox_min[1]
 
 
-def rotate(pts, center, angle):
+def rotate(pts: np.ndarray, center: np.ndarray, angle: float) -> np.ndarray:
     """Rotate 2D points around a centre by a given angle (radians)."""
     # [OPT] float32 throughout: halves memory for large arrays.
     #        np.asarray avoids copy when pts is already float32.
@@ -339,7 +402,7 @@ def split_caries_into_lesions(caries_pts, min_cluster=MIN_CLUSTER_SIZE):
     # 🌟 แก้ไข: min_samples=1 เพื่อให้กวาดจุดที่ติดกัน (ระยะ 2.0) เป็นก้อนเดียวกันทั้งหมด
     # บน Pixel Grid รัศมี 2.0 มีเพื่อนบ้านได้สูงสุด ~13 จุด
     # ดังนั้น min_samples=15 จึงเป็นไปไม่ได้ ต้องใช้ 1 แล้วกรองขนาดทีหลัง
-    clustering = DBSCAN(eps=2.0, min_samples=1).fit(pts)
+    clustering = DBSCAN(eps=DBSCAN_EPS, min_samples=1).fit(pts)
     # [OPT] Copy labels and free DBSCAN internals (KDTree, core_sample_indices, etc.)
     labels = clustering.labels_.copy()
     del clustering
@@ -366,12 +429,25 @@ def split_caries_into_lesions(caries_pts, min_cluster=MIN_CLUSTER_SIZE):
 def remove_small_clusters(caries_pts, min_cluster=MIN_CLUSTER_SIZE):
     """
     ฟังก์ชันทำความสะอาดจุดกวนใจขนาดเล็ก (DRY Principle)
+
+    Note:
+        When no cluster passes the size threshold, returns ALL original
+        points as a **permissive fallback**.  This is intentional — the
+        pipeline has additional fallback layers (e.g. ``process_case_ml``
+        treats the entire blob as one lesion when ``split_caries_into_lesions``
+        returns ``[]``).  Changing to strict empty-return here would silently
+        drop training samples.
     """
     lesions = split_caries_into_lesions(caries_pts, min_cluster)
 
     if not lesions:
-        # [OPT] Return as float32 ndarray instead of keeping as Python list.
-        return np.asarray(caries_pts, dtype=np.float32)  # Fallback กันเหนียว
+        # Permissive fallback — log so frequency is observable.
+        logger.debug(
+            "remove_small_clusters: no cluster >= %d px; "
+            "returning all %d points as fallback.",
+            min_cluster, len(caries_pts),
+        )
+        return np.asarray(caries_pts, dtype=np.float32)
 
     valid_pts = np.vstack(lesions)
     # [OPT] Already float32 from split_caries_into_lesions; no dtype conversion needed.
@@ -379,7 +455,45 @@ def remove_small_clusters(caries_pts, min_cluster=MIN_CLUSTER_SIZE):
     return valid_pts
 
 
-def _get_lesion_zone(tooth_id, tooth_pts, lesion_pts, pca_cache=None):
+def _classify_zone_by_rel_x(
+    rel_x: float, quadrant: int,
+) -> str:
+    """
+    [DRY] Shared zone classification from a relative X coordinate.
+
+    This is the single source of truth for the Mesial/Occlusal/Distal
+    decision boundary logic.  Used by both ``_get_lesion_zone`` and
+    ``classify_xthird``.
+
+    Args:
+        rel_x: Relative X position in [0, 1] within the PCA-aligned bounding box.
+        quadrant: FDI quadrant (1-4).
+
+    Returns:
+        Surface name: 'Mesial', 'Occlusal', or 'Distal'.
+    """
+    if quadrant in (1, 4):
+        if rel_x < LEFT_BOUND:
+            return "Distal"
+        elif rel_x > RIGHT_BOUND:
+            return "Mesial"
+        else:
+            return "Occlusal"
+    else:
+        if rel_x < LEFT_BOUND:
+            return "Mesial"
+        elif rel_x > RIGHT_BOUND:
+            return "Distal"
+        else:
+            return "Occlusal"
+
+
+def _get_lesion_zone(
+    tooth_id: str,
+    tooth_pts: np.ndarray,
+    lesion_pts: np.ndarray,
+    pca_cache: Optional[Tuple] = None,
+) -> str:
     """
     Determine which surface zone a single lesion belongs to.
 
@@ -387,14 +501,14 @@ def _get_lesion_zone(tooth_id, tooth_pts, lesion_pts, pca_cache=None):
     to assign it to Mesial, Occlusal, or Distal (quadrant-aware).
 
     Args:
-        tooth_id (str): FDI tooth identifier.
-        tooth_pts (list or np.ndarray): Tooth mask pixel coordinates.
-        lesion_pts (list or np.ndarray): Lesion region pixel coordinates.
-        pca_cache (tuple, optional): Pre-computed (center, angle, tooth_rot)
+        tooth_id: FDI tooth identifier.
+        tooth_pts: Tooth mask pixel coordinates.
+        lesion_pts: Lesion region pixel coordinates.
+        pca_cache: Pre-computed (center, angle, tooth_rot)
             to avoid redundant PCA. [OPT] Reuse from caller.
 
     Returns:
-        str: 'Mesial', 'Occlusal', 'Distal', or 'Other'.
+        'Mesial', 'Occlusal', 'Distal', or 'Other'.
     """
     try:
         # [OPT] Reuse cached PCA if available — avoids re-computing PCA
@@ -414,21 +528,8 @@ def _get_lesion_zone(tooth_id, tooth_pts, lesion_pts, pca_cache=None):
         lesion_x_center = np.mean(lesion_rot[:, 0])
         rel_x = (lesion_x_center - bbox_x) / w
 
-        quadrant = get_quadrant(tooth_id)
-        if quadrant in [1, 4]:
-            if rel_x < LEFT_BOUND:
-                return "Distal"
-            elif rel_x > RIGHT_BOUND:
-                return "Mesial"
-            else:
-                return "Occlusal"
-        else:
-            if rel_x < LEFT_BOUND:
-                return "Mesial"
-            elif rel_x > RIGHT_BOUND:
-                return "Distal"
-            else:
-                return "Occlusal"
+        # [DRY] Delegate to shared zone classifier.
+        return _classify_zone_by_rel_x(rel_x, get_quadrant(tooth_id))
     except Exception:
         return "Other"
 
@@ -752,22 +853,27 @@ def _stream_caries_teeth(case_id):
 # Feature Extraction
 # =========================================================
 
-def _extract_ml_feature_dict(tooth_id, tooth_pts, caries_pts,
-                             pca_cache=None, skip_clean=False):
+def _extract_ml_feature_dict(
+    tooth_id: str,
+    tooth_pts: np.ndarray,
+    caries_pts: np.ndarray,
+    pca_cache: Optional[Tuple] = None,
+    skip_clean: bool = False,
+) -> Optional[Dict[str, float]]:
     """
     Extract 13 geometric features for one caries-tooth pair.
 
     Args:
-        tooth_id (str): FDI tooth identifier.
-        tooth_pts (list or np.ndarray): Tooth mask pixel coordinates.
-        caries_pts (list or np.ndarray): Caries region pixel coordinates.
-        pca_cache (tuple, optional): Pre-computed (center, angle, tooth_rot).
+        tooth_id: FDI tooth identifier.
+        tooth_pts: Tooth mask pixel coordinates.
+        caries_pts: Caries region pixel coordinates.
+        pca_cache: Pre-computed (center, angle, tooth_rot).
             [OPT] Avoids redundant PCA computation per lesion.
-        skip_clean (bool): If True, skip DBSCAN cleaning (caller already
+        skip_clean: If True, skip DBSCAN cleaning (caller already
             provided clean lesion points). [OPT] Avoids redundant DBSCAN.
 
     Returns:
-        dict or None: Feature dictionary keyed by FEATURE_COLS names.
+        Feature dictionary keyed by FEATURE_COLS names, or None.
     """
     # [OPT] skip_clean=True when caries_pts are already from split_caries_into_lesions
     #        — avoids running DBSCAN again on already-clustered points.
@@ -797,18 +903,27 @@ def _extract_ml_feature_dict(tooth_id, tooth_pts, caries_pts,
     x_rel = np.clip((caries_rot[:, 0] - bbox_x) / w, 0.0, 1.0)
     y_rel = np.clip((caries_rot[:, 1] - bbox_y) / h, 0.0, 1.0)
 
+    # [FIX] Pre-compute statistics to avoid redundant np.min/np.max calls
+    #       (x_range and y_range previously recomputed min/max).
+    x_mean = float(np.mean(x_rel))
+    y_mean = float(np.mean(y_rel))
+    x_min = float(np.min(x_rel))
+    x_max = float(np.max(x_rel))
+    y_min = float(np.min(y_rel))
+    y_max = float(np.max(y_rel))
+
     return {
-        "is_upper": 1 if int(str(tooth_id)[0]) in [1, 2] else 0,
-        "x_mean": float(np.mean(x_rel)),
-        "y_mean": float(np.mean(y_rel)),
+        "is_upper": 1 if is_upper_jaw(tooth_id) else 0,
+        "x_mean": x_mean,
+        "y_mean": y_mean,
         "x_std": float(np.std(x_rel)),
         "y_std": float(np.std(y_rel)),
-        "x_min": float(np.min(x_rel)),
-        "x_max": float(np.max(x_rel)),
-        "y_min": float(np.min(y_rel)),
-        "x_range": float(np.max(x_rel) - np.min(x_rel)),
-        "y_range": float(np.max(y_rel) - np.min(y_rel)),
-        "x_centroid_dist": float(abs(np.mean(x_rel) - 0.5)),
+        "x_min": x_min,
+        "x_max": x_max,
+        "y_min": y_min,
+        "x_range": x_max - x_min,
+        "y_range": y_max - y_min,
+        "x_centroid_dist": abs(x_mean - 0.5),
         "aspect_ratio": float(w / h),
         "coverage": float(len(caries_clean) / (len(tooth_pts) + 1e-6)),
     }
@@ -973,18 +1088,18 @@ def create_ml_dataset(case_ids):
 # Model Training
 # =========================================================
 
-def train_classify_ml(feature_dataframe):
+def train_classify_ml(feature_dataframe: pd.DataFrame) -> Tuple:
     """
     Train a Random Forest classifier with GroupShuffleSplit by case_id.
 
     Args:
-        feature_dataframe (pd.DataFrame): Labelled dataset.
+        feature_dataframe: Labelled dataset.
 
     Returns:
-        tuple: (model, test_dataframe, feature_cols).
+        (model, test_dataframe, feature_cols, test_case_ids).
+        ``test_case_ids`` is the set of case IDs in the holdout split,
+        useful for downstream test-only evaluation.
     """
-    global rf_model
-
     if feature_dataframe.empty:
         raise ValueError("ML dataset is empty.")
 
@@ -993,6 +1108,10 @@ def train_classify_ml(feature_dataframe):
     train_dataframe = feature_dataframe.iloc[train_idx].reset_index(drop=True)
     test_dataframe = feature_dataframe.iloc[test_idx].reset_index(drop=True)
 
+    # [FIX] Capture test case IDs before any freeing — needed for
+    #       test-only evaluation in main() (methodological fix).
+    test_case_ids = sorted(test_dataframe["case_id"].unique().tolist())
+
     model = RandomForestClassifier(
         class_weight="balanced",
         n_estimators=200,
@@ -1000,34 +1119,38 @@ def train_classify_ml(feature_dataframe):
     )
     model.fit(train_dataframe[FEATURE_COLS], train_dataframe["label"])
 
-    rf_model = model
-    joblib.dump(rf_model, str(MODEL_PATH))
-    print(f"Saved model to {MODEL_PATH}")
+    joblib.dump(model, str(MODEL_PATH))
+    logger.info("Saved model to %s", MODEL_PATH)
 
     # [OPT] Free training split — model internals don't reference the DataFrame.
     del train_dataframe
     gc.collect()
 
-    return model, test_dataframe, FEATURE_COLS
+    return model, test_dataframe, FEATURE_COLS, test_case_ids
 
 
 # =========================================================
 # Baseline Classifier (Smart Fallback target)
 # =========================================================
 
-def classify_xthird(tooth_id, tooth_pts, caries_pts, pre_cleaned=False):
+def classify_xthird(
+    tooth_id: str,
+    tooth_pts: np.ndarray,
+    caries_pts: np.ndarray,
+    pre_cleaned: bool = False,
+) -> Tuple[str, float, Dict[str, Any]]:
     """
     Baseline X-Thirds classifier (v4.5 dominant zone).
 
     Args:
-        tooth_id (str): FDI tooth identifier.
-        tooth_pts (list or np.ndarray): Tooth mask pixel coordinates.
-        caries_pts (list or np.ndarray): Caries region pixel coordinates.
-        pre_cleaned (bool): If True, skip DBSCAN cleaning.
+        tooth_id: FDI tooth identifier.
+        tooth_pts: Tooth mask pixel coordinates.
+        caries_pts: Caries region pixel coordinates.
+        pre_cleaned: If True, skip DBSCAN cleaning.
             [OPT] Avoids redundant DBSCAN when lesion is already clustered.
 
     Returns:
-        tuple: (surface, angle_deg, vote_fractions).
+        (surface, angle_deg, vote_fractions).
     """
     # [OPT] Skip redundant DBSCAN when caller provides pre-cleaned lesion points.
     if pre_cleaned:
@@ -1050,7 +1173,7 @@ def classify_xthird(tooth_id, tooth_pts, caries_pts, pre_cleaned=False):
     n_pts = len(rel_xs)
 
     quadrant = get_quadrant(tooth_id)
-    if quadrant in [1, 4]:
+    if quadrant in (1, 4):
         d_mask = rel_xs < LEFT_BOUND
         c_mask = (rel_xs >= LEFT_BOUND) & (rel_xs <= RIGHT_BOUND)
         m_mask = rel_xs > RIGHT_BOUND
@@ -1059,8 +1182,17 @@ def classify_xthird(tooth_id, tooth_pts, caries_pts, pre_cleaned=False):
         c_mask = (rel_xs >= LEFT_BOUND) & (rel_xs <= RIGHT_BOUND)
         d_mask = rel_xs > RIGHT_BOUND
 
-    vote_map = {"Mesial": int(np.sum(m_mask)), "Occlusal": int(np.sum(c_mask)), "Distal": int(np.sum(d_mask))}
-    winner = max(vote_map, key=vote_map.get)
+    vote_map = {
+        "Mesial": int(np.sum(m_mask)),
+        "Occlusal": int(np.sum(c_mask)),
+        "Distal": int(np.sum(d_mask)),
+    }
+    # [DRY] Use shared zone classifier on the mean relative X.
+    winner = _classify_zone_by_rel_x(float(np.mean(rel_xs)), quadrant)
+    # Override with vote-based winner if different (preserves original behaviour).
+    vote_winner = max(vote_map, key=vote_map.get)
+    if vote_winner != winner:
+        winner = vote_winner  # Vote-based takes precedence for xthird
 
     vote_fractions = {k: round(v / max(n_pts, 1), 4) for k, v in vote_map.items()}
     vote_fractions["pca_clamped"] = clamped
@@ -1071,26 +1203,33 @@ def classify_xthird(tooth_id, tooth_pts, caries_pts, pre_cleaned=False):
 # Smart Fallback Classifier
 # =========================================================
 
-def classify_ml(tooth_id, tooth_pts, caries_pts, pre_cleaned=False):
+def classify_ml(
+    tooth_id: str,
+    tooth_pts: np.ndarray,
+    caries_pts: np.ndarray,
+    model: RandomForestClassifier,
+    pre_cleaned: bool = False,
+) -> Tuple[str, float, Dict[str, Any]]:
     """
     Classify using RF predict_proba with Smart Fallback to X-Thirds.
 
     Args:
-        tooth_id (str): FDI tooth identifier.
-        tooth_pts (list or np.ndarray): Tooth mask pixel coordinates.
-        caries_pts (list or np.ndarray): Caries region pixel coordinates.
-        pre_cleaned (bool): If True, skip DBSCAN cleaning in feature extraction.
+        tooth_id: FDI tooth identifier.
+        tooth_pts: Tooth mask pixel coordinates.
+        caries_pts: Caries region pixel coordinates.
+        model: Trained RandomForestClassifier instance.
+        pre_cleaned: If True, skip DBSCAN cleaning in feature extraction.
             [OPT] Avoids redundant DBSCAN when input is already a clean lesion.
 
     Returns:
-        tuple: (predicted_surface, rotation_angle, metadata_dict).
+        (predicted_surface, rotation_angle, metadata_dict).
     """
     try:
         # [OPT] Pass skip_clean to avoid redundant DBSCAN on pre-clustered lesions.
         features = _extract_ml_feature_dict(
             tooth_id, tooth_pts, caries_pts, skip_clean=pre_cleaned,
         )
-        if features is None or rf_model is None:
+        if features is None or model is None:
             return classify_xthird(tooth_id, tooth_pts, caries_pts,
                                    pre_cleaned=pre_cleaned)
 
@@ -1101,9 +1240,9 @@ def classify_ml(tooth_id, tooth_pts, caries_pts, pre_cleaned=False):
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            class_probabilities = rf_model.predict_proba(prediction_input_df)[0]
+            class_probabilities = model.predict_proba(prediction_input_df)[0]
 
-        model_classes = list(rf_model.classes_)
+        model_classes = list(model.classes_)
         valid_surface_classes = ["Occlusal", "Mesial", "Distal"]
         surface_scores = {
             cls: class_probabilities[model_classes.index(cls)]
@@ -1129,7 +1268,11 @@ def classify_ml(tooth_id, tooth_pts, caries_pts, pre_cleaned=False):
 # Per-Case Prediction
 # =========================================================
 
-def process_case_ml(case_id, output_root):
+def process_case_ml(
+    case_id: int,
+    output_root: Path,
+    model: RandomForestClassifier,
+) -> Tuple[bool, str]:
     """
     Run classify_ml on all teeth in one case and save prediction JSON.
 
@@ -1140,11 +1283,12 @@ def process_case_ml(case_id, output_root):
       - Aggressive del + gc.collect() after each case.
 
     Args:
-        case_id (int): Case identifier (1-500).
-        output_root (Path): Root directory for predictions.
+        case_id: Case identifier (1-500).
+        output_root: Root directory for predictions.
+        model: Trained RandomForestClassifier instance.
 
     Returns:
-        tuple: (is_success, status_message).
+        (is_success, status_message).
     """
     case_dir = output_root / f"case_{case_id}"
     case_dir.mkdir(parents=True, exist_ok=True)
@@ -1185,6 +1329,7 @@ def process_case_ml(case_id, output_root):
             # [OPT] pre_cleaned=True skips redundant DBSCAN on already-clustered lesions.
             surface, angle, metadata = classify_ml(
                 tooth_id, tooth_pts, lesion_pts,
+                model=model,
                 pre_cleaned=is_pre_cleaned,
             )
 
@@ -1271,21 +1416,31 @@ def match_case(ground_truth, predictions):
     return y_true, y_pred
 
 
-def evaluate_version(version):
+def evaluate_version(
+    version: str,
+    case_ids: Optional[List[int]] = None,
+) -> Tuple[List[str], List[str], float]:
     """
     Evaluate predictions for a version against XML ground truth.
 
     Args:
-        version (str): Version tag (e.g. 'Run3').
+        version: Version tag (e.g. 'Run3').
+        case_ids: If provided, evaluate ONLY these cases (e.g. test split).
+            If None, evaluates all 500 cases (legacy behaviour).
 
     Returns:
-        tuple: (all_y_true, all_y_pred, f1_macro).
+        (all_y_true, all_y_pred, f1_macro).
     """
     out_dir = _THIS_DIR / f"PCA_Output_{version}"  # [OPT] Absolute path — works regardless of CWD
     all_y_true, all_y_pred = [], []
 
-    print(f"[RUNNING] Evaluating {version}...", flush=True)
-    for case_num in range(1, 501):
+    # [FIX] Support test-only evaluation to avoid reporting metrics
+    #       that include training data (methodological fix).
+    eval_cases = case_ids if case_ids is not None else list(range(1, 501))
+    eval_label = f"{version} (test-only: {len(eval_cases)} cases)" if case_ids else version
+
+    logger.info("[RUNNING] Evaluating %s...", eval_label)
+    for i, case_num in enumerate(eval_cases):
         gt_folder = GT_ROOT / f"case {case_num}"
         ground_truth = parse_case_ground_truth(gt_folder)
         predictions = load_prediction(case_num, out_dir)
@@ -1294,7 +1449,7 @@ def evaluate_version(version):
         yt, yp = match_case(ground_truth, predictions)
         all_y_true.extend(yt)
         all_y_pred.extend(yp)
-        _progress_bar(case_num, 500, f"Eval {version}")
+        _progress_bar(i + 1, len(eval_cases), f"Eval {version}")
 
     accuracy = accuracy_score(all_y_true, all_y_pred)
     precision = precision_score(all_y_true, all_y_pred, average="macro", zero_division=0)
@@ -1303,7 +1458,7 @@ def evaluate_version(version):
     cm = confusion_matrix(all_y_true, all_y_pred, labels=VALID_SURFACES)
     cm_df = pd.DataFrame(cm, index=VALID_SURFACES, columns=VALID_SURFACES)
 
-    print(f"\n========== FINAL EVALUATION [{version}] ==========")
+    print(f"\n========== FINAL EVALUATION [{eval_label}] ==========")
     print(f"Total Samples : {len(all_y_true)}")
     print(f"Accuracy      : {accuracy:.4f}")
     print(f"Precision     : {precision:.4f}")
@@ -1608,74 +1763,118 @@ SP/
 # =========================================================
 
 def main():
-    """Run the complete Run 3 pipeline end-to-end."""
-    global rf_model
+    """
+    Run the complete Run 3 pipeline end-to-end.
 
+    Supports ``--dry-run`` flag to validate pipeline logic without
+    writing output files.
+
+    .. note::
+        Evaluation (Step 4) now runs on **test-only cases** by default
+        to avoid inflating reported metrics with training data.
+    """
+    # ---- CLI argument parsing ----
+    parser = argparse.ArgumentParser(
+        description="Run 3 dental caries surface classification pipeline.",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Validate pipeline without writing output files.",
+    )
+    args = parser.parse_args()
+    dry_run = args.dry_run
+
+    if dry_run:
+        logger.info("[DRY-RUN] Mode enabled — no output files will be written.")
+
+    pipeline_start = time.time()
     OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
     case_ids = list(range(1, 501))
 
     # --- Step 1: Extract features ---
-    print("[START] เริ่มรัน Pipeline Run 3...", flush=True)
+    logger.info("[START] เริ่มรัน Pipeline Run 3...")
+    step_start = time.time()
     feature_dataframe = create_ml_dataset(case_ids)
-    print(
-        f"[DONE] Step 1 เสร็จสิ้น! "
-        f"ได้ข้อมูลเตรียมเทรนทั้งหมด: {len(feature_dataframe)} ซี่",
-        flush=True,
+    logger.info(
+        "[DONE] Step 1 เสร็จสิ้น! "
+        "ได้ข้อมูลเตรียมเทรนทั้งหมด: %d ซี่ (%.1fs)",
+        len(feature_dataframe),
+        time.time() - step_start,
     )
     # [OPT] Force GC between major pipeline steps.
     gc.collect()
 
     # --- Step 2: Train model ---
-    print("[RUNNING] Step 2: กำลัง Train โมเดล Random Forest...", flush=True)
-    model, test_dataframe, _ = train_classify_ml(feature_dataframe)
+    step_start = time.time()
+    logger.info("[RUNNING] Step 2: กำลัง Train โมเดล Random Forest...")
+    model, test_dataframe, _, test_case_ids = train_classify_ml(feature_dataframe)
     # [OPT] Capture counts before freeing DataFrames.
     n_total = len(feature_dataframe)
     n_test = len(test_dataframe)
-    print(
-        f"[DONE] Step 2 เสร็จสิ้น! "
-        f"Train: {n_total - n_test} ซี่ | "
-        f"Test: {n_test} ซี่",
-        flush=True,
+    logger.info(
+        "[DONE] Step 2 เสร็จสิ้น! "
+        "Train: %d ซี่ | Test: %d ซี่ | Test cases: %d (%.1fs)",
+        n_total - n_test,
+        n_test,
+        len(test_case_ids),
+        time.time() - step_start,
     )
     # [OPT] Free training + test DataFrames — model internals don't reference them.
     del feature_dataframe, test_dataframe
     gc.collect()
 
-    # --- Step 3: Predict with Smart Fallback ---
-    total = len(case_ids)
-    success_count, failure_count = 0, 0
-    print("[RUNNING] Step 3: นำโมเดลไปทำนายผลทั้ง 500 เคส...", flush=True)
-    for i, case_id in enumerate(case_ids):
-        is_success, _ = process_case_ml(case_id, OUTPUT_ROOT)
-        if is_success:
-            success_count += 1
-        else:
-            failure_count += 1
-        _progress_bar(i + 1, total, "Step 3: ทำนายผล")
+    if not dry_run:
+        # --- Step 3: Predict with Smart Fallback ---
+        step_start = time.time()
+        total = len(case_ids)
+        success_count, failure_count = 0, 0
+        logger.info("[RUNNING] Step 3: นำโมเดลไปทำนายผลทั้ง 500 เคส...")
+        for i, case_id in enumerate(case_ids):
+            is_success, _ = process_case_ml(case_id, OUTPUT_ROOT, model=model)
+            if is_success:
+                success_count += 1
+            else:
+                failure_count += 1
+            _progress_bar(i + 1, total, "Step 3: ทำนายผล")
 
-    print(
-        f"[SUCCESS] สำเร็จ! เขียนไฟล์ทำนายผลแล้ว: "
-        f"{success_count} เคส, ล้มเหลว: {failure_count} เคส",
-        flush=True,
-    )
-    # [OPT] Force GC after Step 3 (500 cases worth of intermediate objects).
-    gc.collect()
+        logger.info(
+            "[SUCCESS] สำเร็จ! เขียนไฟล์ทำนายผลแล้ว: "
+            "%d เคส, ล้มเหลว: %d เคส (%.1fs)",
+            success_count,
+            failure_count,
+            time.time() - step_start,
+        )
+        # [OPT] Force GC after Step 3 (500 cases worth of intermediate objects).
+        gc.collect()
 
-    # --- Step 4: Evaluate ---
-    all_y_true, all_y_pred, f1 = evaluate_version("Run3")
+        # --- Step 4: Evaluate (TEST CASES ONLY) ---
+        # [FIX] Previously evaluated ALL 500 cases including ~400 training
+        #       cases, inflating reported metrics.  Now evaluates only the
+        #       holdout split from GroupShuffleSplit for honest reporting.
+        step_start = time.time()
+        all_y_true, all_y_pred, f1 = evaluate_version(
+            "Run3", case_ids=test_case_ids,
+        )
+        logger.info("[DONE] Step 4: Evaluation (%.1fs)", time.time() - step_start)
 
-    # --- Step 4.5: Evaluation plots ---
-    print("[RUNNING] กำลังสร้างกราฟผลการ Predict...", flush=True)
-    plot_evaluation_results(all_y_true, all_y_pred, version="Run3")
+        # --- Step 4.5: Evaluation plots ---
+        logger.info("[RUNNING] กำลังสร้างกราฟผลการ Predict...")
+        plot_evaluation_results(all_y_true, all_y_pred, version="Run3")
 
-    # --- Step 5: Feature importance plot ---
-    plot_feature_importance(model, FEATURE_COLS)
+        # --- Step 5: Feature importance plot ---
+        plot_feature_importance(model, FEATURE_COLS)
 
-    # --- Step 6: Generate HTML README ---
-    generate_readme_html()
+        # --- Step 6: Generate HTML README ---
+        generate_readme_html()
+    else:
+        logger.info("[DRY-RUN] Skipping Steps 3-6 (prediction, eval, plots, README).")
 
-    print("\n[ALL DONE] Pipeline Run 3 complete.")
+    elapsed = time.time() - pipeline_start
+    logger.info("[ALL DONE] Pipeline Run 3 complete. Total time: %.1fs", elapsed)
 
 
 if __name__ == "__main__":
     main()
+
+

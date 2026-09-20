@@ -1,0 +1,19 @@
+{
+  "name": "caries-surface-classification-demo-app",
+  "version": "1.0.0",
+  "description": "Medical Input Validation Gate & System Monitoring Dashboard",
+  "scripts": {
+    "install:all": "npm install && cd server && npm install && cd ../client && npm install",
+    "dev:server": "cd server && node index.js",
+    "dev:client": "cd client && npm run dev",
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "test:validation": "cd server && node test/test_validation.js",
+    "test:smoke": "cd server && node test/smoke_test.js",
+    "build:client": "cd client && npm run build"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "author": "Antigravity Agent",
+  "license": "MIT"
+}
