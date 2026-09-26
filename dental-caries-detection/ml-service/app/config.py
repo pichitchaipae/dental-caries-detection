@@ -1,20 +1,21 @@
 from pydantic_settings import BaseSettings
-from pathlib import Path
-
+from pydantic import Field
 
 class Settings(BaseSettings):
     """ML Service configuration settings."""
-    ML_SERVICE_PORT: int = 8000
-    ML_SERVICE_HOST: str = "0.0.0.0"
-    MODEL_PATH: str = str(Path(__file__).parent.parent / "models" / "best.pt")
-    CONFIDENCE_THRESHOLD: float = 0.25
-    MODEL_VERSION: str = "v1.0.0"
-    LOG_LEVEL: str = "info"
-    MAX_FILE_SIZE: int = 10485760  # 10MB
-    ALLOWED_EXTENSIONS: set = {"image/jpeg", "image/png"}
+    database_url: str = Field(alias="DATABASE_URL")
+    ml_service_port: int = Field(8001, alias="ML_SERVICE_PORT")
+    ml_service_host: str = Field("0.0.0.0", alias="ML_SERVICE_HOST")
+    shared_dir: str = Field("/shared", alias="SHARED_DIR")
+    weights_dir: str = Field("/weights", alias="WEIGHTS_DIR")
+    device: str = Field("cpu", alias="ML_DEVICE")
+    caries_conf: float = Field(0.005, alias="CARIES_CONF")
+    detection_threshold: float = Field(0.25, alias="DETECTION_THRESHOLD")
+    enable_crop_segmenter: bool = Field(True, alias="ENABLE_CROP_SEGMENTER")
+    log_level: str = Field("info", alias="LOG_LEVEL")
 
     class Config:
         env_file = ".env"
-
+        populate_by_name = True
 
 settings = Settings()

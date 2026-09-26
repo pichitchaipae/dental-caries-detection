@@ -1,55 +1,68 @@
-from contextlib import asynccontextmanager
 import logging
+from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 from app.config import settings
-from app.services.detection import DetectionService
+from app.db import get_engine
+from app.runner import InferenceRunner
 
-logging.basicConfig(level=getattr(logging, settings.LOG_LEVEL.upper()))
+logging.basicConfig(level=getattr(logging, settings.log_level.upper(), logging.INFO))
 logger = logging.getLogger(__name__)
 
-# Shared detection service instance
-detection_service = DetectionService()
+runner = InferenceRunner()
 
+# Create DB engine
+db_engine = get_engine(settings.database_url)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan: load model on startup."""
     logger.info("Starting ML Service...")
-    try:
-        detection_service.load_model()
-        logger.info("ML Service started successfully")
-    except Exception as e:
-        logger.error(f"Failed to start ML Service: {e}")
     yield
     logger.info("Shutting down ML Service...")
-
+    runner.cancel()
 
 app = FastAPI(
     title="Dental Caries Detection ML Service",
-    description="YOLOv8-based dental caries detection service",
-    version=settings.MODEL_VERSION,
+    description="YOLOv8-based dental caries detection service (Phase 2)",
     lifespan=lifespan,
 )
 
+class InferRequest(BaseModel):
+    jobId: int
 
-def get_detection_service() -> DetectionService:
-    """Dependency injection for DetectionService."""
-    return detection_service
+@app.post("/infer", status_code=202)
+def infer(req: InferRequest):
+    try:
+        runner.start(req.jobId, settings.model_dump(), db_engine)
+        return {"status": "accepted", "job_id": req.jobId}
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        logger.error(f"Failed to start inference: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/cancel")
+def cancel():
+    runner.cancel()
+    return {"status": "cancelled"}
 
-# Register routes after app creation
-from app.api.routes import router  # noqa: E402
-
-app.include_router(router)
-
+@app.get("/health")
+def health():
+    return {
+        "ready": True,
+        "artifacts": {},
+        "active_job_id": runner.active_job_id
+    }
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """Global exception handler for unhandled errors."""
     logger.error(f"Unhandled error: {exc}", exc_info=True)
+    if isinstance(exc, HTTPException):
+        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
     return JSONResponse(
         status_code=500,
         content={

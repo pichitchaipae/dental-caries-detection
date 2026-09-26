@@ -1,5 +1,5 @@
-# Phase 1: db, pgadmin, backend, frontend. The ml-service is added in Phase 2
-# (it will also mount shared_data).
+# Phase 1: db, pgadmin, backend, frontend.
+# Phase 2: adds ml-service (ML_DRIVER=http) with shared_data volume + bind-mount weights.
 
 services:
   db:
@@ -80,6 +80,46 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Phase 2 — ML inference service
+  # Set ML_DRIVER=http and ML_WEIGHTS_HOST_DIR in .env to activate.
+  # ---------------------------------------------------------------------------
+  ml-service:
+    build: ./ml-service
+    env_file: .env
+    environment:
+      SHARED_DIR: /shared
+      WEIGHTS_DIR: /weights
+      ML_SERVICE_PORT: "${ML_SERVICE_PORT:-8001}"
+      ML_DEVICE: "${ML_DEVICE:-cpu}"
+      CARIES_CONF: "${CARIES_CONF:-0.005}"
+      DETECTION_THRESHOLD: "${DETECTION_THRESHOLD:-0.25}"
+      ENABLE_CROP_SEGMENTER: "${ENABLE_CROP_SEGMENTER:-true}"
+    ports:
+      - "127.0.0.1:${ML_SERVICE_PORT:-8001}:8001"
+    volumes:
+      - shared_data:/shared
+      - type: bind
+        source: ${ML_WEIGHTS_HOST_DIR}
+        target: /weights
+        read_only: true
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - "-c"
+        - "import urllib.request, sys; r=urllib.request.urlopen('http://localhost:8001/health',timeout=5); sys.exit(0 if r.status==200 else 1)"
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    profiles:
+      - ml
     restart: unless-stopped
 
 volumes:
