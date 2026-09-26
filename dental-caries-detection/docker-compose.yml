@@ -1,6 +1,3 @@
-# Phase 1: db, pgadmin, backend, frontend.
-# Phase 2: adds ml-service (ML_DRIVER=http) with shared_data volume + bind-mount weights.
-
 services:
   db:
     image: postgres:16
@@ -118,8 +115,6 @@ services:
       timeout: 10s
       retries: 5
       start_period: 90s
-    profiles:
-      - ml
     restart: unless-stopped
 
 volumes:
