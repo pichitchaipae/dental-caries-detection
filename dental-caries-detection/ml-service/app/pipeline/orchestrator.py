@@ -159,7 +159,7 @@ def _atomic_publish(
 
     # 2. Pre-publish check (optimization — not the safety predicate)
     current_status = get_job_status(engine, job_id)
-    if current_status != "processing":
+    if current_status is not None and current_status != "processing":
         tmp_path.unlink(missing_ok=True)
         log.warning(
             "job_id=%d status='%s' before publish — discarding result",
@@ -173,7 +173,7 @@ def _atomic_publish(
 
     # 4. Update DB (primary safety guard: WHERE status='processing')
     updated = update_job_done(engine, job_id, str(result_path))
-    if not updated:
+    if not updated and current_status is not None:
         # Superseded between rename and DB update
         result_path.unlink(missing_ok=True)
         log.warning(
@@ -181,4 +181,4 @@ def _atomic_publish(
             job_id,
         )
     else:
-        log.info("job_id=%d marked done in DB", job_id)
+        log.info("job_id=%d marked done in DB (or DB not present/row missing)", job_id)

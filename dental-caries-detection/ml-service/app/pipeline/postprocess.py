@@ -41,11 +41,11 @@ def encode_mask_polygon(
     Encode a list of polygon points as the API polygon format.
 
     Input:  [[x1,y1], [x2,y2], ...]  (original image coords)
-    Output: {"encoding": "polygon", "data": [[[x1,y1],[x2,y2],...]]}
+    Output: {"encoding": "polygon", "data": [[x1,y1],[x2,y2],...]}
     """
     return {
         "encoding": "polygon",
-        "data": [[[float(x), float(y)] for x, y in mask_points]],
+        "data": [[float(x), float(y)] for x, y in mask_points],
     }
 
 
@@ -72,6 +72,7 @@ def mask_bits_to_polygon(
 
 
 def build_tooth_result(
+    id: int,
     fdi: int,
     bbox_xywh: tuple[int, int, int, int],
     mask_polygon: list[list[float]],
@@ -85,11 +86,20 @@ def build_tooth_result(
     surface_findings: list of {"name": "occlusal", "label": "caries", "probability": 0.88}
     """
     x, y, w, h = bbox_xywh
+    
+    # Default axes if missing to satisfy strict Zod schema requirement
+    safe_axes = axes if axes is not None else {
+        "major": [0.0, 0.0],
+        "minor": [0.0, 0.0],
+        "rotation_deg": 0.0
+    }
+
     return {
+        "id": id,
         "fdi": fdi,
         "confidence": round(float(pano_confidence), 4),
         "bbox": [x, y, w, h],
         "mask": encode_mask_polygon(mask_polygon),
-        "axes": axes,
+        "axes": safe_axes,
         "surfaces": surface_findings,
     }

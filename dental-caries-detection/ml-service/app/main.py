@@ -36,7 +36,7 @@ class InferRequest(BaseModel):
 @app.post("/infer", status_code=202)
 def infer(req: InferRequest):
     try:
-        runner.start(req.jobId, settings.model_dump(), db_engine)
+        runner.start(req.jobId, settings.model_dump(by_alias=True), db_engine)
         return {"status": "accepted", "job_id": req.jobId}
     except HTTPException as e:
         raise e

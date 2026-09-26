@@ -11,5 +11,5 @@ torch==2.4.1
 torchvision==0.19.1
 scikit-learn==1.7.2
 joblib==1.4.2
-ultralytics==8.2.82
+ultralytics>=8.3.0
 pandas==2.2.3

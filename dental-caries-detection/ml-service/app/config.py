@@ -18,4 +18,16 @@ class Settings(BaseSettings):
         env_file = ".env"
         populate_by_name = True
 
+    def input_path(self, job_id: int):
+        from pathlib import Path
+        return Path(self.shared_dir) / f"input-{job_id}.jpg"
+
+    def result_tmp_path(self, job_id: int):
+        from pathlib import Path
+        return Path(self.shared_dir) / f"result-{job_id}.tmp"
+
+    def result_path(self, job_id: int):
+        from pathlib import Path
+        return Path(self.shared_dir) / f"result-{job_id}.json"
+
 settings = Settings()

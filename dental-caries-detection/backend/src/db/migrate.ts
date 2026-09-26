@@ -1,10 +1,32 @@
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// Placeholder until BE-2.2. It must not require a database, so the container
-// entrypoint (`migrate && server`) still boots when no `db` is reachable.
+import pg from 'pg';
+
 export async function migrate(): Promise<void> {
-  console.info('migration: placeholder, nothing to do (implemented in BE-2.2)');
+  const { Client } = pg;
+  const client = new Client({
+    connectionString: process.env.DATABASE_URL,
+  });
+
+  try {
+    await client.connect();
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS jobs (
+        id BIGINT PRIMARY KEY,
+        status VARCHAR(255) NOT NULL DEFAULT 'processing',
+        result_path VARCHAR(255),
+        fail_message VARCHAR(255),
+        updated_at TIMESTAMP
+      );
+    `);
+    console.info('migration: jobs table created successfully');
+  } catch (err) {
+    console.error('migration error:', err);
+    throw err;
+  } finally {
+    await client.end();
+  }
 }
 
 const isMain =

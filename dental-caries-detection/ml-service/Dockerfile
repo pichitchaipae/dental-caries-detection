@@ -14,10 +14,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libxext6 \
         libxrender1 \
         wget \
+        git \
+        build-essential \
+        ninja-build \
     && rm -rf /var/lib/apt/lists/*
 
-# Non-root user
-RUN groupadd -r mluser && useradd -r -g mluser -m mluser
+# Non-root user with uid 1000 to match backend node user for /shared permission
+RUN groupadd -g 1000 mluser && useradd -u 1000 -g 1000 -m mluser
 
 WORKDIR /app
 
