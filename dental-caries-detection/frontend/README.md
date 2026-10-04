@@ -23,7 +23,7 @@ src/
 │   ├── validation.ts           # FE-4.4: client-side pre-flight mirror (not authoritative)
 │   └── rle.ts                  # FE-4.5: polygon mask decode + point-in-polygon hit test
 ├── fixtures/
-│   └── result.sample.json      # INT-2 fixture (see Mocking below)
+│   └── ml-result.raw.sample.json  # raw ml-service result the backend forwards (see Mocking below)
 ├── mocks/                      # (new, not in project-structure.md's tree — see Mocking below)
 │   ├── handlers.ts             # MSW handlers simulating POST/GET /process
 │   ├── resultFactory.ts        # Generates synthetic teeth sized to the real uploaded image
@@ -84,17 +84,20 @@ backend later; only `main.tsx`'s `enableMockingIfNeeded()` call goes away.
   `VITE_API_MOCKING=enabled` (the default). Never active in `vite build`/
   `preview` — the Docker image always expects a real backend.
 - `src/mocks/resultFactory.ts` reads the actual dimensions of whatever image
-  you upload and generates synthetic teeth inside its real bounds (mirrors
-  `backend/src/services/mockMl.ts`'s documented behavior, BE-3.4, once that
-  exists) — one tooth is always flagged with an occlusal caries surface so
-  the highlighting UI has something to show.
-- `src/fixtures/result.sample.json` is the **INT-2 contract fixture**, used by
-  `domain/__tests__/inference.test.ts` to prove `parseProcessResponse` accepts
-  the agreed shape. Its `image_base64` is a 1x1 placeholder pixel (schema
-  fixture only — not meant to be rendered); the live demo's realistic image
-  comes from `resultFactory.ts` instead. When Naris creates
-  `backend/src/fixtures/result.sample.json` (INT-2 kickoff), this file should
-  be reconciled to match byte-for-byte per the plan.
+  you upload and generates synthetic teeth inside its real bounds, in the raw
+  ml-service shape the real backend returns — one tooth is always flagged with
+  an occlusal caries surface so the highlighting UI has something to show.
+- `src/fixtures/ml-result.raw.sample.json` is a copy of
+  `backend/src/fixtures/ml-result.raw.sample.json`: the ml-service result that the
+  backend forwards **unchanged** as `data` on `GET /process` (the backend can't be
+  changed, so the frontend adapts to it). `domain/inference.ts` parses this raw
+  shape and `normalizeInference` turns it into the smaller `InferenceData` the UI
+  uses (`meta.image_size` -> `image`; other `meta` fields are dropped). Its
+  `surfaces` list only the caries surfaces of a tooth, so the UI shows a caries
+  count, not "x / 5". Keep the file in sync with the backend copy.
+- The backend answers every rejected upload with a generic `422` (never 413/415)
+  and caps uploads at 10 MB, so `lib/validation.ts` pre-flight (type, 10 MB,
+  resolution) is the only place that gives specific error messages.
 - Env vars (see `.env.example`): `VITE_API_MOCKING`, `VITE_MOCK_ML_DELAY_MS`,
   `VITE_MOCK_ML_FAILURE_RATE` (set to `1` to force every run to fail, for
   testing the fail-path UI).

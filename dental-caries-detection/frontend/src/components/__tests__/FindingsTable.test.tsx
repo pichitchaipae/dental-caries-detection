@@ -8,11 +8,12 @@ import userEvent from '@testing-library/user-event';
 afterEach(cleanup);
 import { FindingsTable } from '../FindingsTable';
 import { toViewModel } from '../../features/analysis/analysisTypes';
-import type { InferenceData } from '../../domain/inference';
-import fixture from '../../fixtures/result.sample.json';
+import { parseProcessResponse } from '../../domain/inference';
+import rawResult from '../../fixtures/ml-result.raw.sample.json';
 
-const data = fixture.data as unknown as InferenceData;
-const teeth = toViewModel(data).teeth; // FDI 16 (0 caries), 36 (1 caries), 46 (1 caries)
+const parsed = parseProcessResponse({ status: 'done', image_base64: 'x', data: rawResult });
+if (parsed.status !== 'done') throw new Error('fixture must parse as a done response');
+const teeth = toViewModel(parsed.data).teeth; // FDI 11 & 16 (0 caries), 36 (1 caries), 46 (1 caries)
 
 function fdiColumn() {
   return screen
@@ -24,8 +25,8 @@ function fdiColumn() {
 describe('FindingsTable', () => {
   it('defaults to caries count desc, then FDI asc', () => {
     render(<FindingsTable teeth={teeth} selectedToothId={null} onSelectTooth={vi.fn()} />);
-    // FDI 36 and 46 both have 1 caries surface (tie -> FDI asc: 36 before 46); FDI 16 has 0, sorts last.
-    expect(fdiColumn()).toEqual(['36', '46', '16']);
+    // FDI 36 and 46 both have 1 caries surface (tie -> FDI asc: 36 before 46); FDI 11 and 16 have 0, sort last.
+    expect(fdiColumn()).toEqual(['36', '46', '11', '16']);
   });
 
   it('sorts by FDI ascending, then descending on repeat click', async () => {
@@ -33,10 +34,10 @@ describe('FindingsTable', () => {
     render(<FindingsTable teeth={teeth} selectedToothId={null} onSelectTooth={vi.fn()} />);
 
     await user.click(screen.getByRole('columnheader', { name: /FDI/ }));
-    expect(fdiColumn()).toEqual(['16', '36', '46']);
+    expect(fdiColumn()).toEqual(['11', '16', '36', '46']);
 
     await user.click(screen.getByRole('columnheader', { name: /FDI/ }));
-    expect(fdiColumn()).toEqual(['46', '36', '16']);
+    expect(fdiColumn()).toEqual(['46', '36', '16', '11']);
   });
 
   it('shows an empty state when there are no teeth', () => {

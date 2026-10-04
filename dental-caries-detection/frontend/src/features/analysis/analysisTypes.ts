@@ -39,7 +39,7 @@ export interface ToothViewModel {
   axes: ToothAxes;
   surfaces: SurfaceFinding[];
   cariesCount: number;
-  cariesSummary: string; // "2 / 5 surfaces"
+  cariesSummary: string; // "2 caries surfaces"
   hasCaries: boolean;
   colorKey: string; // stable per-tooth identity color, for overlays
 }
@@ -69,7 +69,7 @@ function toToothViewModel(tooth: InferenceData['teeth'][number]): ToothViewModel
     axes: tooth.axes,
     surfaces: tooth.surfaces,
     cariesCount,
-    cariesSummary: `${cariesCount} / ${tooth.surfaces.length} surfaces`,
+    cariesSummary: `${cariesCount} caries ${cariesCount === 1 ? 'surface' : 'surfaces'}`,
     hasCaries: cariesCount > 0,
     colorKey: IDENTITY_COLOR_PALETTE[tooth.id % IDENTITY_COLOR_PALETTE.length],
   };

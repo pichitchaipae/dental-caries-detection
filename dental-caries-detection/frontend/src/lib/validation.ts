@@ -1,7 +1,8 @@
 // Pre-flight only: gives the clinician fast, friendly feedback. The backend
-// (backend/src/lib/validation.ts, BE-3.1) remains authoritative — these
-// defaults are kept in sync with its env-driven constraints by convention,
-// not by a shared import (the two apps don't share a module boundary).
+// does not validate file type or resolution and caps uploads at 10 MB
+// (@fastify/multipart limit in backend/src/app.ts), answering any rejection
+// with a generic 422 — so this pre-flight is the only place that can give a
+// specific error. Defaults are kept in sync by convention, not a shared import.
 
 export interface OpgConstraints {
   maxBytes: number;
@@ -10,7 +11,7 @@ export interface OpgConstraints {
   acceptedTypes: string[];
 }
 
-const DEFAULT_MAX_IMAGE_MB = 25;
+const DEFAULT_MAX_IMAGE_MB = 10;
 const DEFAULT_MIN_WIDTH = 1000;
 const DEFAULT_MIN_HEIGHT = 500;
 

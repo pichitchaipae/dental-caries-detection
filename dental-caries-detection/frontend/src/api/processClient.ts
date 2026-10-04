@@ -35,7 +35,10 @@ export async function submitOpg(file: File): Promise<SubmitResult> {
     return { status: 'processing' };
   }
 
-  if (response.status === 415 || response.status === 422 || response.status === 413) {
+  // The backend answers every upload rejection with 422 and a generic
+  // `fail_message` (no 413/415 — oversize/wrong-type files are caught by the
+  // client-side preflight instead).
+  if (response.status === 422) {
     let failMessage = 'The image was rejected by the server.';
     try {
       const body = (await response.json()) as { fail_message?: string };

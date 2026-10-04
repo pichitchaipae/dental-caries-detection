@@ -43,34 +43,37 @@ export function ToothDetailPanel({ tooth, onClose }: ToothDetailPanelProps) {
         </button>
       </div>
       <p className="mb-3 text-sm text-slate-500">
-        Detection confidence: {(tooth.confidence * 100).toFixed(0)}% · {tooth.cariesSummary}{' '}
-        affected
+        Detection confidence: {(tooth.confidence * 100).toFixed(0)}% · {tooth.cariesSummary}
       </p>
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-left text-slate-500">
-            <th className="border-b border-slate-200 py-1.5 font-medium">Surface</th>
-            <th className="border-b border-slate-200 py-1.5 font-medium">Finding</th>
-            <th className="border-b border-slate-200 py-1.5 font-medium">Probability</th>
-          </tr>
-        </thead>
-        <tbody>
-          {tooth.surfaces.map((surface) => (
-            <tr
-              key={surface.name}
-              className={
-                surface.label === 'caries' ? 'bg-danger-50 font-semibold text-danger-600' : ''
-              }
-            >
-              <td className="border-b border-slate-100 py-1.5 capitalize">{surface.name}</td>
-              <td className="border-b border-slate-100 py-1.5 capitalize">{surface.label}</td>
-              <td className="border-b border-slate-100 py-1.5">
-                {(surface.probability * 100).toFixed(0)}%
-              </td>
+      {tooth.surfaces.length === 0 ? (
+        <p className="text-sm text-slate-500">No caries surfaces detected on this tooth.</p>
+      ) : (
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-slate-500">
+              <th className="border-b border-slate-200 py-1.5 font-medium">Surface</th>
+              <th className="border-b border-slate-200 py-1.5 font-medium">Finding</th>
+              <th className="border-b border-slate-200 py-1.5 font-medium">Probability</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {tooth.surfaces.map((surface) => (
+              <tr
+                key={surface.name}
+                className={
+                  surface.label === 'caries' ? 'bg-danger-50 font-semibold text-danger-600' : ''
+                }
+              >
+                <td className="border-b border-slate-100 py-1.5 capitalize">{surface.name}</td>
+                <td className="border-b border-slate-100 py-1.5 capitalize">{surface.label}</td>
+                <td className="border-b border-slate-100 py-1.5">
+                  {(surface.probability * 100).toFixed(0)}%
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }

@@ -1,8 +1,10 @@
 import { z } from 'zod';
 
-// Mirrors docs-md/project-structure.md Section 7.1 exactly. Kept byte-aligned
-// with the backend's route schemas (INT-1) and backend/src/fixtures/result.sample.json
-// (INT-2) once that fixture exists.
+// Mirrors what the backend actually sends on GET /process: the ml-service result
+// JSON forwarded untouched (see backend/src/routes/process.ts and
+// backend/src/fixtures/ml-result.raw.sample.json). The backend cannot be changed,
+// so the wire shape is parsed as-is (`RawInferenceData`) and then adapted into the
+// smaller `InferenceData` the UI consumes (`normalizeInference`).
 
 export type ProcessStatus = 'idle' | 'processing' | 'done' | 'fail';
 
@@ -10,18 +12,20 @@ export interface SurfaceFinding {
   name: 'mesial' | 'distal' | 'occlusal' | 'buccal' | 'lingual';
   label: 'caries' | 'sound';
   probability: number;
+  method?: string;
 }
 
 export interface ToothAxes {
   major: [number, number];
   minor: [number, number];
   rotation_deg: number;
+  clamped?: boolean;
 }
 
 export interface MaskData {
   encoding: 'polygon' | 'rle';
   // polygon: [[x, y], ...]; rle: flat run lengths (not emitted in Phase 1).
-  data: number[][] | number[];
+  data: [number, number][] | number[];
 }
 
 export interface Tooth {
@@ -34,14 +38,9 @@ export interface Tooth {
   surfaces: SurfaceFinding[];
 }
 
-export interface InferenceMeta {
-  processed_at: string;
-  models: { detector: string; classifier: string };
-  timings_ms: Record<string, number>;
-}
-
+// What the UI consumes. `image` is derived from the wire `meta.image_size`; the
+// rest of the wire `meta` (job_id, completed_at, counts) is not used by any UI.
 export interface InferenceData {
-  meta: InferenceMeta;
   image: { width: number; height: number };
   teeth: Tooth[];
 }
@@ -60,12 +59,14 @@ const surfaceFindingSchema = z.object({
   name: z.enum(['mesial', 'distal', 'occlusal', 'buccal', 'lingual']),
   label: z.enum(['caries', 'sound']),
   probability: z.number().min(0).max(1),
+  method: z.string().optional(),
 });
 
 const toothAxesSchema = z.object({
   major: z.tuple([z.number(), z.number()]),
   minor: z.tuple([z.number(), z.number()]),
   rotation_deg: z.number(),
+  clamped: z.boolean().optional(),
 });
 
 const maskDataSchema = z.object({
@@ -83,17 +84,28 @@ const toothSchema = z.object({
   surfaces: z.array(surfaceFindingSchema),
 });
 
-const inferenceMetaSchema = z.object({
-  processed_at: z.string(),
-  models: z.object({ detector: z.string(), classifier: z.string() }),
-  timings_ms: z.record(z.string(), z.number()),
+// Only `image_size` is required (the UI needs it); the other meta fields are
+// accepted but optional so a missing counter never blocks rendering results.
+const rawInferenceMetaSchema = z.object({
+  job_id: z.number().optional(),
+  completed_at: z.string().optional(),
+  image_size: z.object({ width: z.number(), height: z.number() }),
+  tooth_count: z.number().optional(),
+  caries_count: z.number().optional(),
 });
 
-const inferenceDataSchema = z.object({
-  meta: inferenceMetaSchema,
-  image: z.object({ width: z.number(), height: z.number() }),
+const rawInferenceDataSchema = z.object({
+  meta: rawInferenceMetaSchema,
   teeth: z.array(toothSchema),
 });
+
+export type RawInferenceData = z.infer<typeof rawInferenceDataSchema>;
+
+export function normalizeInference(raw: RawInferenceData): InferenceData {
+  return { image: raw.meta.image_size, teeth: raw.teeth };
+}
+
+const inferenceDataSchema = rawInferenceDataSchema.transform(normalizeInference);
 
 const processResponseSchema = z.discriminatedUnion('status', [
   z.object({ status: z.literal('idle') }),

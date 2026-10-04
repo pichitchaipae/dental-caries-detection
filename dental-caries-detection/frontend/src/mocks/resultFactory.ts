@@ -1,12 +1,13 @@
-import type { InferenceData, SurfaceFinding, Tooth } from '../domain/inference';
+import type { RawInferenceData, SurfaceFinding, Tooth } from '../domain/inference';
 
-// Mirrors backend/src/services/mockMl.ts (BE-3.4, not yet implemented): reads
-// the real dimensions of the uploaded image and generates plausible synthetic
-// teeth inside its bounds, so the frontend can be built and demoed without
-// waiting for that backend work to land.
+// Mimics what the real backend returns on GET /process (the ml-service result
+// forwarded as-is, see backend/src/fixtures/ml-result.raw.sample.json): reads the
+// real dimensions of the uploaded image and generates plausible synthetic teeth
+// inside its bounds. Like the real ml-service, `surfaces` lists only the surfaces
+// found with caries — a healthy tooth has an empty array.
 
 const FDI_CODES = [16, 36, 46] as const;
-const SURFACE_NAMES = ['mesial', 'distal', 'occlusal', 'buccal', 'lingual'] as const;
+type SurfaceName = SurfaceFinding['name'];
 
 function fileToDataUri(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -33,15 +34,16 @@ function octagonAround([x, y, w, h]: [number, number, number, number]): [number,
   ];
 }
 
-function buildSurfaces(cariousSurface: (typeof SURFACE_NAMES)[number] | null): SurfaceFinding[] {
-  return SURFACE_NAMES.map((name) => {
-    const isCaries = name === cariousSurface;
-    return {
-      name,
-      label: isCaries ? 'caries' : 'sound',
-      probability: isCaries ? 0.75 + Math.random() * 0.2 : Math.random() * 0.12,
-    };
-  });
+function buildSurfaces(cariousSurface: SurfaceName | null): SurfaceFinding[] {
+  if (cariousSurface === null) return [];
+  return [
+    {
+      name: cariousSurface,
+      label: 'caries',
+      probability: 0.75 + Math.random() * 0.2,
+      method: 'RF',
+    },
+  ];
 }
 
 function generateSyntheticTeeth(imgWidth: number, imgHeight: number): Tooth[] {
@@ -79,6 +81,7 @@ function generateSyntheticTeeth(imgWidth: number, imgHeight: number): Tooth[] {
         major: [Math.cos(radians), Math.sin(radians)],
         minor: [-Math.sin(radians), Math.cos(radians)],
         rotation_deg: rotation,
+        clamped: false,
       },
       surfaces: buildSurfaces(i === cariesToothIndex ? 'occlusal' : null),
     } satisfies Tooth;
@@ -87,21 +90,24 @@ function generateSyntheticTeeth(imgWidth: number, imgHeight: number): Tooth[] {
 
 export async function buildMockResult(
   file: File
-): Promise<{ data: InferenceData; imageBase64: string }> {
+): Promise<{ data: RawInferenceData; imageBase64: string }> {
   const [imageBase64, bitmap] = await Promise.all([fileToDataUri(file), createImageBitmap(file)]);
   const { width, height } = bitmap;
   bitmap.close();
+
+  const teeth = generateSyntheticTeeth(width, height);
 
   return {
     imageBase64,
     data: {
       meta: {
-        processed_at: new Date().toISOString(),
-        models: { detector: 'mock-det-v0', classifier: 'mock-surf-v0' },
-        timings_ms: { detection: 2400, pca: 12, classification: 640 },
+        job_id: Date.now(),
+        completed_at: new Date().toISOString(),
+        image_size: { width, height },
+        tooth_count: teeth.length,
+        caries_count: teeth.filter((tooth) => tooth.surfaces.length > 0).length,
       },
-      image: { width, height },
-      teeth: generateSyntheticTeeth(width, height),
+      teeth,
     },
   };
 }

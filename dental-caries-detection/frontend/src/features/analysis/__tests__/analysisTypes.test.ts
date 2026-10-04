@@ -1,32 +1,33 @@
 import { describe, expect, it } from 'vitest';
 import { toViewModel } from '../analysisTypes';
-import type { InferenceData } from '../../../domain/inference';
-import fixture from '../../../fixtures/result.sample.json';
+import { parseProcessResponse, type InferenceData } from '../../../domain/inference';
+import rawResult from '../../../fixtures/ml-result.raw.sample.json';
 
-// The JSON import's inferred types (e.g. `bbox: number[]`) are wider than the
-// tuple-typed `InferenceData`; this fixture is already validated against the
-// real schema by domain/__tests__/inference.test.ts, so the cast is safe here.
-const data = fixture.data as unknown as InferenceData;
+// Parse through the real schema so the fixture is adapted exactly as in production
+// (raw ml-service JSON -> InferenceData).
+const parsed = parseProcessResponse({ status: 'done', image_base64: 'x', data: rawResult });
+if (parsed.status !== 'done') throw new Error('fixture must parse as a done response');
+const data: InferenceData = parsed.data;
 
 describe('toViewModel', () => {
   it('computes display labels, caries summaries, and a summary block from the fixture', () => {
     const vm = toViewModel(data);
 
     expect(vm.image).toEqual(data.image);
-    expect(vm.teeth).toHaveLength(3);
+    expect(vm.teeth).toHaveLength(4);
 
     const tooth36 = vm.teeth.find((t) => t.fdi === 36);
     expect(tooth36?.displayLabel).toBe('FDI 36');
     expect(tooth36?.cariesCount).toBe(1);
-    expect(tooth36?.cariesSummary).toBe('1 / 5 surfaces');
+    expect(tooth36?.cariesSummary).toBe('1 caries surface');
     expect(tooth36?.hasCaries).toBe(true);
 
     const tooth16 = vm.teeth.find((t) => t.fdi === 16);
     expect(tooth16?.hasCaries).toBe(false);
-    expect(tooth16?.cariesSummary).toBe('0 / 5 surfaces');
+    expect(tooth16?.cariesSummary).toBe('0 caries surfaces');
 
     expect(vm.summary).toEqual({
-      totalTeeth: 3,
+      totalTeeth: 4,
       teethWithCaries: 2, // fixture has caries on FDI 36 and FDI 46
       totalCariesSurfaces: 2,
     });
@@ -58,23 +59,25 @@ describe('toViewModel', () => {
     const vm = toViewModel(noSurfaces);
 
     expect(vm.teeth[0].cariesCount).toBe(0);
-    expect(vm.teeth[0].cariesSummary).toBe('0 / 0 surfaces');
+    expect(vm.teeth[0].cariesSummary).toBe('0 caries surfaces');
     expect(vm.teeth[0].hasCaries).toBe(false);
   });
 
-  it('handles a tooth where every surface has caries', () => {
+  it('counts every caries surface on a tooth', () => {
+    const names = ['mesial', 'distal', 'occlusal', 'buccal', 'lingual'] as const;
     const allCaries: InferenceData = {
       ...data,
       teeth: [
         {
           ...data.teeth[0],
-          surfaces: data.teeth[0].surfaces.map((s) => ({ ...s, label: 'caries' as const })),
+          surfaces: names.map((name) => ({ name, label: 'caries' as const, probability: 0.9 })),
         },
       ],
     };
     const vm = toViewModel(allCaries);
 
     expect(vm.teeth[0].cariesCount).toBe(5);
+    expect(vm.teeth[0].cariesSummary).toBe('5 caries surfaces');
     expect(vm.teeth[0].hasCaries).toBe(true);
   });
 });
