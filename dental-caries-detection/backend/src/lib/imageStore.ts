@@ -10,7 +10,7 @@
  */
 
 import { createWriteStream, promises as fs } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve, sep } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import type { Readable } from 'node:stream';
 
@@ -28,18 +28,27 @@ export function resultPath(jobId: number): string {
  * Write an image stream to /shared/input-{jobId}.jpg.
  * Overwrites if a previous file exists (should not happen with single-concurrency).
  */
-export async function saveInputImage(
-  jobId: number,
-  stream: Readable,
-): Promise<string> {
+export async function saveInputImage(jobId: number, stream: Readable): Promise<string> {
   const dest = inputPath(jobId);
   await pipeline(stream, createWriteStream(dest));
   return dest;
 }
 
 /**
+ * Where to read a finished job's result: the `result_path` column ml-service
+ * wrote, as long as it points inside SHARED_DIR; otherwise the conventional name.
+ */
+export function resolveResultPath(jobId: number, storedResultPath: string | null): string {
+  if (storedResultPath) {
+    const resolved = resolve(storedResultPath);
+    if (resolved.startsWith(resolve(SHARED_DIR) + sep)) return resolved;
+  }
+  return resultPath(jobId);
+}
+
+/**
  * Read the inference result JSON for a completed job.
- * Expects the path stored in the `result_path` DB column — does NOT hardcode.
+ * Pass the path from resolveResultPath().
  */
 export async function readResultJson(storedResultPath: string): Promise<unknown> {
   const raw = await fs.readFile(storedResultPath, 'utf-8');

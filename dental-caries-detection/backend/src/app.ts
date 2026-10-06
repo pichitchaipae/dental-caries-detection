@@ -2,6 +2,7 @@ import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastif
 import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
 import { registerProcessRoutes } from './routes/process.js';
+import { closePool } from './db/pool.js';
 
 // Builds the Fastify instance without listening, so tests can use app.inject().
 export function buildApp(opts: FastifyServerOptions = {}): FastifyInstance {
@@ -10,11 +11,11 @@ export function buildApp(opts: FastifyServerOptions = {}): FastifyInstance {
   app.register(cors, {
     origin: process.env.CORS_ORIGIN ?? '*',
   });
-  
+
   app.register(multipart, {
     limits: {
-      fileSize: 10 * 1024 * 1024 // 10MB limit
-    }
+      fileSize: 10 * 1024 * 1024, // 10MB limit
+    },
   });
 
   // Backend liveness only; the ML service gets its own /health in Phase 2.
@@ -22,6 +23,8 @@ export function buildApp(opts: FastifyServerOptions = {}): FastifyInstance {
   app.get('/health', () => ({ status: 'ok' }));
 
   app.register(registerProcessRoutes);
+
+  app.addHook('onClose', closePool);
 
   return app;
 }

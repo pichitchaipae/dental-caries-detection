@@ -5,7 +5,7 @@ const host = '0.0.0.0';
 
 const app = buildApp({ logger: true });
 
-// TODO BE-2.4: await migrate() (with retry) before listen(); close the pool in onClose.
+// TODO BE-2.4: await migrate() (with retry) before listen(). The pool is closed in onClose (app.ts).
 
 // Node running as PID 1 in a container ignores SIGTERM unless a handler exists,
 // which would make `docker compose stop` wait for the 10s kill timeout.
