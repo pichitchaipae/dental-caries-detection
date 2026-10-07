@@ -2,6 +2,7 @@ import { mkdtempSync, existsSync, readFileSync, writeFileSync, rmSync } from 'no
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { adaptInferenceResult } from '../../services/resultAdapter.js';
 
 // imageStore reads SHARED_DIR at import time; the app is imported dynamically below.
 const sharedDir = mkdtempSync(join(tmpdir(), 'be-shared-'));
@@ -81,7 +82,7 @@ describe('/process', () => {
       expect(res.json()).toEqual({ status: 'fail', fail_message: "TypeError('boom')" });
     });
 
-    it('forwards the ml-service result untouched when done', async () => {
+    it('adapts the ml-service result to API v1 when done', async () => {
       const id = 3;
       writeFileSync(join(sharedDir, `input-${id}.jpg`), Buffer.from('img'));
       writeFileSync(join(sharedDir, `result-${id}.json`), rawFixture);
@@ -97,7 +98,7 @@ describe('/process', () => {
       expect(body.image_base64).toBe(
         `data:image/jpeg;base64,${Buffer.from('img').toString('base64')}`
       );
-      expect(body.data).toEqual(JSON.parse(rawFixture));
+      expect(body.data).toEqual(adaptInferenceResult(JSON.parse(rawFixture)));
     });
 
     it('ignores a result_path outside SHARED_DIR', async () => {
@@ -111,7 +112,7 @@ describe('/process', () => {
         failMessage: null,
       });
       const res = await app.inject({ method: 'GET', url: '/process' });
-      expect(res.json().data).toEqual(JSON.parse(rawFixture));
+      expect(res.json().data).toEqual(adaptInferenceResult(JSON.parse(rawFixture)));
     });
 
     it('fails when a done job has no result file', async () => {
@@ -170,7 +171,10 @@ describe('/process', () => {
       vi.mocked(ml.dispatchInference).mockResolvedValue(false);
       const res = await app.inject({ method: 'POST', url: '/process', ...multipartBody() });
       expect(res.statusCode).toBe(422);
-      expect(res.json()).toEqual({ fail_message: 'ML service rejected the job.' });
+      expect(res.json()).toEqual({
+        status: 'fail',
+        fail_message: 'ML service rejected the job.',
+      });
       expect(vi.mocked(jobs.failJob)).toHaveBeenCalledWith(12, 'ML service rejected the job.');
     });
 
@@ -178,7 +182,10 @@ describe('/process', () => {
       vi.mocked(jobs.startJob).mockRejectedValue(new Error('db down'));
       const res = await app.inject({ method: 'POST', url: '/process', ...multipartBody() });
       expect(res.statusCode).toBe(422);
-      expect(res.json()).toEqual({ fail_message: 'Failed to upload image.' });
+      expect(res.json()).toEqual({
+        status: 'fail',
+        fail_message: 'Failed to upload image.',
+      });
       expect(vi.mocked(ml.dispatchInference)).not.toHaveBeenCalled();
     });
 

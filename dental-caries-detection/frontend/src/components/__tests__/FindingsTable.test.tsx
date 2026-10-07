@@ -11,7 +11,26 @@ import { toViewModel } from '../../features/analysis/analysisTypes';
 import { parseProcessResponse } from '../../domain/inference';
 import rawResult from '../../fixtures/ml-result.raw.sample.json';
 
-const parsed = parseProcessResponse({ status: 'done', image_base64: 'x', data: rawResult });
+const apiData = {
+  meta: {
+    job_id: rawResult.meta.job_id,
+    processed_at: new Date(rawResult.meta.completed_at).toISOString(),
+    models: { detector: 'unknown', classifier: 'unknown' },
+    timings_ms: {},
+  },
+  image: rawResult.meta.image_size,
+  teeth: rawResult.teeth.map((tooth, id) => ({
+    ...tooth,
+    id,
+    axes: { ...tooth.axes, clamped: tooth.axes.clamped ?? false },
+    has_caries: tooth.surfaces.length > 0,
+    surfaces: tooth.surfaces.map((surface) => ({
+      ...surface,
+      probability: surface.method === 'RF' ? surface.probability : null,
+    })),
+  })),
+};
+const parsed = parseProcessResponse({ status: 'done', image_base64: 'x', data: apiData });
 if (parsed.status !== 'done') throw new Error('fixture must parse as a done response');
 const teeth = toViewModel(parsed.data).teeth; // FDI 11 & 16 (0 caries), 36 (1 caries), 46 (1 caries)
 

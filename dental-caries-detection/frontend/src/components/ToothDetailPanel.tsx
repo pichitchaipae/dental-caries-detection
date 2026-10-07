@@ -67,7 +67,9 @@ export function ToothDetailPanel({ tooth, onClose }: ToothDetailPanelProps) {
                 <td className="border-b border-slate-100 py-1.5 capitalize">{surface.name}</td>
                 <td className="border-b border-slate-100 py-1.5 capitalize">{surface.label}</td>
                 <td className="border-b border-slate-100 py-1.5">
-                  {(surface.probability * 100).toFixed(0)}%
+                  {surface.probability === null
+                    ? 'N/A'
+                    : `${(surface.probability * 100).toFixed(0)}%`}
                 </td>
               </tr>
             ))}

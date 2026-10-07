@@ -3,9 +3,26 @@ import { toViewModel } from '../analysisTypes';
 import { parseProcessResponse, type InferenceData } from '../../../domain/inference';
 import rawResult from '../../../fixtures/ml-result.raw.sample.json';
 
-// Parse through the real schema so the fixture is adapted exactly as in production
-// (raw ml-service JSON -> InferenceData).
-const parsed = parseProcessResponse({ status: 'done', image_base64: 'x', data: rawResult });
+const apiData = {
+  meta: {
+    job_id: rawResult.meta.job_id,
+    processed_at: new Date(rawResult.meta.completed_at).toISOString(),
+    models: { detector: 'unknown', classifier: 'unknown' },
+    timings_ms: {},
+  },
+  image: rawResult.meta.image_size,
+  teeth: rawResult.teeth.map((tooth, id) => ({
+    ...tooth,
+    id,
+    axes: { ...tooth.axes, clamped: tooth.axes.clamped ?? false },
+    has_caries: tooth.surfaces.length > 0,
+    surfaces: tooth.surfaces.map((surface) => ({
+      ...surface,
+      probability: surface.method === 'RF' ? surface.probability : null,
+    })),
+  })),
+};
+const parsed = parseProcessResponse({ status: 'done', image_base64: 'x', data: apiData });
 if (parsed.status !== 'done') throw new Error('fixture must parse as a done response');
 const data: InferenceData = parsed.data;
 
@@ -64,20 +81,25 @@ describe('toViewModel', () => {
   });
 
   it('counts every caries surface on a tooth', () => {
-    const names = ['mesial', 'distal', 'occlusal', 'buccal', 'lingual'] as const;
+    const names = ['mesial', 'distal', 'occlusal'] as const;
     const allCaries: InferenceData = {
       ...data,
       teeth: [
         {
           ...data.teeth[0],
-          surfaces: names.map((name) => ({ name, label: 'caries' as const, probability: 0.9 })),
+          surfaces: names.map((name) => ({
+            name,
+            label: 'caries' as const,
+            probability: 0.9,
+            method: 'RF' as const,
+          })),
         },
       ],
     };
     const vm = toViewModel(allCaries);
 
-    expect(vm.teeth[0].cariesCount).toBe(5);
-    expect(vm.teeth[0].cariesSummary).toBe('5 caries surfaces');
+    expect(vm.teeth[0].cariesCount).toBe(3);
+    expect(vm.teeth[0].cariesSummary).toBe('3 caries surfaces');
     expect(vm.teeth[0].hasCaries).toBe(true);
   });
 });

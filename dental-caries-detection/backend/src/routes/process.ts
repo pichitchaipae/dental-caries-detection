@@ -8,11 +8,12 @@ import {
   resolveResultPath,
 } from '../lib/imageStore.js';
 import { dispatchInference } from '../services/mlClient.js';
+import { adaptInferenceResult } from '../services/resultAdapter.js';
 import { failJob, getLatestJob, startJob } from '../db/jobs.js';
 
 // Wire format is frozen by docs-md/api-contract-v1.md (v1.1): POST errors are
-// always 422 + fail_message, GET always answers one of idle/processing/fail/done,
-// and `data` is the ml-service result forwarded untouched.
+// always 422 + status/fail_message, GET always answers one of
+// idle/processing/fail/done, and `data` is the validated API v1 adapter output.
 
 export async function registerProcessRoutes(app: FastifyInstance) {
   app.post('/process', async (req: FastifyRequest, reply: FastifyReply) => {
@@ -20,7 +21,7 @@ export async function registerProcessRoutes(app: FastifyInstance) {
     try {
       const data = await req.file();
       if (!data) {
-        return reply.status(422).send({ fail_message: 'No image provided.' });
+        return reply.status(422).send({ status: 'fail', fail_message: 'No image provided.' });
       }
 
       // Supersede whatever was running and record the new job before telling
@@ -34,7 +35,9 @@ export async function registerProcessRoutes(app: FastifyInstance) {
       const accepted = await dispatchInference(jobId);
       if (!accepted) {
         await failJob(jobId, 'ML service rejected the job.');
-        return reply.status(422).send({ fail_message: 'ML service rejected the job.' });
+        return reply
+          .status(422)
+          .send({ status: 'fail', fail_message: 'ML service rejected the job.' });
       }
 
       // Files of replaced jobs are no longer reachable through GET /process.
@@ -48,7 +51,7 @@ export async function registerProcessRoutes(app: FastifyInstance) {
         await failJob(jobId, 'Failed to upload image.').catch(() => {});
         await cleanupJobFiles(jobId);
       }
-      return reply.status(422).send({ fail_message: 'Failed to upload image.' });
+      return reply.status(422).send({ status: 'fail', fail_message: 'Failed to upload image.' });
     }
   });
 
@@ -78,16 +81,31 @@ export async function registerProcessRoutes(app: FastifyInstance) {
         return reply.send({ status: 'fail', fail_message: job.failMessage || 'Inference failed.' });
 
       case 'done':
+        let resultJson: unknown;
         try {
-          const resultJson = await readResultJson(resolveResultPath(job.id, job.resultPath));
+          resultJson = await readResultJson(resolveResultPath(job.id, job.resultPath));
+        } catch (err) {
+          req.log.error(err, `GET /process: result for job ${job.id} unreadable`);
+          return reply.send({ status: 'fail', fail_message: 'Result file unavailable.' });
+        }
+
+        let data;
+        try {
+          data = adaptInferenceResult(resultJson);
+        } catch (err) {
+          req.log.error(err, `GET /process: invalid result for job ${job.id}`);
+          return reply.send({ status: 'fail', fail_message: 'Invalid inference result.' });
+        }
+
+        try {
           const imgBuf = await fs.readFile(inputPath(job.id));
           return reply.send({
             status: 'done',
             image_base64: `data:image/jpeg;base64,${imgBuf.toString('base64')}`,
-            data: resultJson,
+            data,
           });
         } catch (err) {
-          req.log.error(err, `GET /process: result for job ${job.id} unreadable`);
+          req.log.error(err, `GET /process: input image for job ${job.id} unreadable`);
           return reply.send({ status: 'fail', fail_message: 'Result file unavailable.' });
         }
     }

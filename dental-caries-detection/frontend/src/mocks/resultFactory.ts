@@ -1,7 +1,6 @@
-import type { RawInferenceData, SurfaceFinding, Tooth } from '../domain/inference';
+import type { InferenceData, SurfaceFinding, Tooth } from '../domain/inference';
 
-// Mimics what the real backend returns on GET /process (the ml-service result
-// forwarded as-is, see backend/src/fixtures/ml-result.raw.sample.json): reads the
+// Mimics the API v1 result returned by the real backend: reads the
 // real dimensions of the uploaded image and generates plausible synthetic teeth
 // inside its bounds. Like the real ml-service, `surfaces` lists only the surfaces
 // found with caries — a healthy tooth has an empty array.
@@ -83,6 +82,7 @@ function generateSyntheticTeeth(imgWidth: number, imgHeight: number): Tooth[] {
         rotation_deg: rotation,
         clamped: false,
       },
+      has_caries: i === cariesToothIndex,
       surfaces: buildSurfaces(i === cariesToothIndex ? 'occlusal' : null),
     } satisfies Tooth;
   });
@@ -90,7 +90,7 @@ function generateSyntheticTeeth(imgWidth: number, imgHeight: number): Tooth[] {
 
 export async function buildMockResult(
   file: File
-): Promise<{ data: RawInferenceData; imageBase64: string }> {
+): Promise<{ data: InferenceData; imageBase64: string }> {
   const [imageBase64, bitmap] = await Promise.all([fileToDataUri(file), createImageBitmap(file)]);
   const { width, height } = bitmap;
   bitmap.close();
@@ -102,11 +102,11 @@ export async function buildMockResult(
     data: {
       meta: {
         job_id: Date.now(),
-        completed_at: new Date().toISOString(),
-        image_size: { width, height },
-        tooth_count: teeth.length,
-        caries_count: teeth.filter((tooth) => tooth.surfaces.length > 0).length,
+        processed_at: new Date().toISOString(),
+        models: { detector: 'mock', classifier: 'mock' },
+        timings_ms: {},
       },
+      image: { width, height },
       teeth,
     },
   };
