@@ -67,6 +67,9 @@ dataset_*/
 # YOLO / Model Weights
 # =========================
 *.pt
+*.pth
+*.pkl
+*.joblib
 *.onnx
 *.torchscript
 
@@ -104,3 +107,14 @@ presentation_hero_shots/
 .claude/
 metadata/
 metadata
+
+# =========================
+# Node.js / Frontend
+# =========================
+node_modules/
+caries_surface_classification/app/frontend/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnp/
+.pnp.js

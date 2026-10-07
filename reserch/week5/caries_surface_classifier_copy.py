@@ -315,9 +315,8 @@ def perform_pca_3(points: np.ndarray) -> Tuple[np.ndarray, np.ndarray, float]:
   
  # ================================================================================
 def perform_pca_4(points: np.ndarray) -> Tuple[np.ndarray, np.ndarray, float]:
-    
-  
-    
+    pass
+
 
 # ================================================================================
 def perform_pca_5(points: np.ndarray) -> Tuple[np.ndarray, np.ndarray, float]:
@@ -335,7 +334,7 @@ def perform_pca_5(points: np.ndarray) -> Tuple[np.ndarray, np.ndarray, float]:
     # --- [จุดที่แก้] Logic เลือกแกนหลักใหม่ ---
     
     # ดึงเวกเตอร์ทั้ง 2 ตัวออกมา
-vec_0 = eigenvectors[:, 0]
+    vec_0 = eigenvectors[:, 0]
     vec_1 = eigenvectors[:, 1]
     
     # วิธีที่ 4: Absolute Vertical Prior

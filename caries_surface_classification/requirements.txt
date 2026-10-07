@@ -1,0 +1,32 @@
+# =============================================================================
+# Requirements for Dental Caries Surface Classification Benchmark Pipeline
+# caries_surface_classifier_20250401.py
+# =============================================================================
+# Install: pip install -r requirements.txt
+# Python >= 3.9 recommended
+
+# --- Core Scientific Computing ---
+numpy>=1.24.0
+pandas>=2.0.0
+
+# --- Computer Vision ---
+opencv-python>=4.8.0
+
+# --- Machine Learning (scikit-learn) ---
+scikit-learn>=1.3.0
+joblib>=1.3.0
+
+# --- Gradient Boosting ---
+xgboost>=2.0.0
+
+# --- Deep Learning (PyTorch) ---
+# NOTE: For GPU support, install the CUDA-compatible version from
+# https://pytorch.org/get-started/locally/ instead of the line below.
+torch>=2.1.0
+
+# --- Visualisation ---
+matplotlib>=3.7.0
+seaborn>=0.13.0
+
+# --- Interactive Visualisation (optional, used by legacy notebook) ---
+# plotly>=5.18.0

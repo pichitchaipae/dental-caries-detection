@@ -7,6 +7,9 @@ pandas>=2.0
 matplotlib>=3.7
 seaborn>=0.12
 tqdm>=4.65
+scikit-learn>=1.2
+joblib
+ijson
 
 # ML / Deep Learning
 torch>=2.0

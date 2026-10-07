@@ -526,8 +526,9 @@ def _plot_single_error(case_id, tooth_id, true_label, pred_label,
         if len(tooth_pts) < 10 or len(caries_pts) == 0:
             return
 
-        tooth_arr = np.array(tooth_pts, dtype=np.float64)
-        caries_arr = np.array(caries_pts, dtype=np.float64)
+        # [FIX] Use float32 consistently with pipeline optimizations.
+        tooth_arr = np.array(tooth_pts, dtype=np.float32)
+        caries_arr = np.array(caries_pts, dtype=np.float32)
         caries_clean = remove_small_clusters(caries_arr)
 
         # PCA alignment
@@ -648,16 +649,23 @@ def task3_confidence_analysis(model, test_df):
     correct_mask = y_true == y_pred
 
     # Console summary
+    n_correct = np.sum(correct_mask)
+    n_incorrect = np.sum(~correct_mask)
     print(f"\n  Confidence Statistics:")
-    print(f"  {'':20s}  {'Correct':>10s}  {'Incorrect':>10s}")
-    print(f"  {'Mean':20s}  {np.mean(max_proba[correct_mask]):>10.4f}  "
-          f"{np.mean(max_proba[~correct_mask]):>10.4f}")
-    print(f"  {'Median':20s}  {np.median(max_proba[correct_mask]):>10.4f}  "
-          f"{np.median(max_proba[~correct_mask]):>10.4f}")
-    print(f"  {'Min':20s}  {np.min(max_proba[correct_mask]):>10.4f}  "
-          f"{np.min(max_proba[~correct_mask]):>10.4f}")
-    print(f"  {'Max':20s}  {np.max(max_proba[correct_mask]):>10.4f}  "
-          f"{np.max(max_proba[~correct_mask]):>10.4f}")
+    print(f"  {'':20s}  {'Correct':<10s}  {'Incorrect':<10s}")
+
+    # [FIX] Guard against empty subsets — np.min/np.max crash on empty arrays.
+    def _safe_stat(fn, arr):
+        """Return stat or 'N/A' if array is empty."""
+        return f"{fn(arr):>10.4f}" if len(arr) > 0 else f"{'N/A':>10s}"
+
+    correct_proba = max_proba[correct_mask]
+    incorrect_proba = max_proba[~correct_mask]
+
+    for stat_name, fn in [("Mean", np.mean), ("Median", np.median),
+                          ("Min", np.min), ("Max", np.max)]:
+        print(f"  {stat_name:20s}  {_safe_stat(fn, correct_proba)}  "
+              f"{_safe_stat(fn, incorrect_proba)}")
 
     task3a_confidence_histogram(max_proba, correct_mask)
     task3b_confidence_boxplot(max_proba, correct_mask, y_true, y_pred)
