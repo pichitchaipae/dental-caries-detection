@@ -1,6 +1,8 @@
 # Dental Caries Detection - ML Service
 
-Standalone Python microservice for dental caries detection using YOLOv8 object detection model.
+Python microservice for the multi-stage dental caries pipeline: panoramic tooth
+segmentation, lesion detection, PCA alignment, and Random Forest surface
+classification.
 
 ## Technology Stack
 
@@ -10,32 +12,21 @@ Standalone Python microservice for dental caries detection using YOLOv8 object d
 - **Server**: Uvicorn (ASGI)
 - **Containerization**: Docker
 
-## Project Structure
+## Runtime model artifacts
 
 ```
-ml-service/
-├── app/
-│   ├── __init__.py
-│   ├── main.py              # FastAPI application entry point
-│   ├── config.py             # Configuration settings
-│   ├── api/
-│   │   ├── __init__.py
-│   │   └── routes.py         # API route definitions
-│   ├── models/
-│   │   ├── __init__.py
-│   │   └── schemas.py        # Pydantic request/response schemas
-│   └── services/
-│       ├── __init__.py
-│       └── detection.py      # YOLOv8 detection service
-├── models/
-│   └── best.pt               # Trained YOLOv8 model weights
-├── tests/
-│   ├── __init__.py
-│   ├── test_api.py           # API endpoint tests
-│   └── test_detection.py     # Detection service tests
-├── Dockerfile
-├── requirements.txt
-└── README.md
+The service loads the files listed in `models/versions.py` from `WEIGHTS_DIR`
+(default `/weights`):
+
+| Logical model | Artifact | Purpose |
+|---|---|---|
+| `pano_detector` | `Tooth_seg_pano_20250319.pt` | Detect and segment FDI teeth |
+| `caries_detector` | `caries_detect.pt` | Detect candidate lesions |
+| `crop_segmenter` | `Tooth_seg_crop_20250424.pth` | Optional tooth-mask refinement |
+| `surface_classifier` | `rf_classify_ml.pkl` | Run 3 RF classifier using 14 features |
+
+`rf_classify_ml.pkl` is retained as a deployment-compatible legacy filename;
+the logical name `surface_classifier` should be used in code and diagnostics.
 ```
 
 ## Setup
@@ -52,7 +43,7 @@ venv\Scripts\activate     # Windows
 pip install -r requirements.txt
 
 # Run the service
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
 ```
 
 ### Docker
@@ -67,12 +58,8 @@ docker run -p 8000:8000 dental-caries-ml-service
 
 ## API Endpoints
 
-### POST /predict
-Run caries detection on an uploaded dental X-ray image.
-
-**Parameters:**
-- `file` (multipart): Dental X-ray image (JPEG/PNG, max 10MB)
-- `confidence_threshold` (query, optional): Minimum confidence score (0.0-1.0, default: 0.25)
+The backend owns the public API contract. The ML service receives jobs through
+the shared-volume workflow described in `docs-md/ml-service-data-flow.md`.
 
 ### GET /health
 Health check endpoint returning model status.
@@ -86,9 +73,10 @@ Get model metadata and configuration.
 |----------|---------|-------------|
 | `ML_SERVICE_PORT` | `8000` | Service port |
 | `ML_SERVICE_HOST` | `0.0.0.0` | Service host |
-| `MODEL_PATH` | `./models/best.pt` | Path to YOLOv8 model |
-| `CONFIDENCE_THRESHOLD` | `0.25` | Default confidence threshold |
-| `MODEL_VERSION` | `v1.0.0` | Model version string |
+| `WEIGHTS_DIR` | `/weights` | Directory containing all model artifacts |
+| `CARIES_CONF` | `0.02` | Minimum lesion confidence |
+| `DETECTION_THRESHOLD` | `0.25` | Minimum tooth confidence |
+| `ENABLE_CROP_SEGMENTER` | `true` | Enable optional crop-mask refinement |
 | `LOG_LEVEL` | `info` | Logging level |
 
 ## Running Tests

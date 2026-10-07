@@ -29,7 +29,7 @@ from app.pipeline.numbering import class_id_to_fdi
 log = logging.getLogger(__name__)
 
 # Caries detection tuning (mirrors caries_detection.py in reference pipeline)
-_CARIES_CONF_DEFAULT = 0.005
+_CARIES_CONF_DEFAULT = 0.02
 _CARIES_IOU = 0.30
 _MIN_OWNERSHIP_SCORE = 0.25
 _POINT_CLOUD_DENSITY = 5  # pts per pixel along bbox edge

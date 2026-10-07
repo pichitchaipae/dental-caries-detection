@@ -1,8 +1,9 @@
 """
 Stage 3 — RF surface classification.
 
-Uses the 14-feature vector from FeatureExtractor (ported from reference pipeline)
-and the pre-trained RandomForestClassifier (rf_classify_ml.pkl).
+Uses the 14-feature vector from FeatureExtractor (ported from Run 3)
+and the pre-trained RandomForestClassifier (legacy artifact filename
+``rf_classify_ml.pkl``).
 
 Probability output:
   - Uses rf.classes_ index directly — does NOT assume class order.
@@ -29,6 +30,7 @@ FEATURE_COLS = [
     "x_min", "x_max", "y_min", "y_max", "x_range",
     "y_range", "x_centroid_dist", "aspect_ratio", "coverage",
 ]
+VALID_SURFACE_CLASSES = ("Distal", "Mesial", "Occlusal")
 
 MIN_CLUSTER_SIZE = 15
 MAX_TILT_DEG = 45.0
@@ -252,10 +254,18 @@ def classify_tooth(
 
     df = pd.DataFrame([features], columns=FEATURE_COLS)
 
-    # Predict — use rf.classes_ index, never assume order
+    # Match Run 3: an unexpected artifact class must not become a valid API
+    # finding. If valid classes exist, choose only among those classes.
     probabilities = rf.predict_proba(df)[0]
-    predicted_label = rf.predict(df)[0]
-    class_index = list(rf.classes_).index(predicted_label)
+    classes = list(rf.classes_)
+    valid_indices = [
+        i for i, label in enumerate(classes) if label in VALID_SURFACE_CLASSES
+    ]
+    if not valid_indices:
+        log.warning("FDI %d: RF has no supported surface classes — X-Thirds fallback", det.fdi)
+        return [_classify_xthird(det.fdi, det.tooth_polygon, det.caries_points)]
+    class_index = max(valid_indices, key=probabilities.__getitem__)
+    predicted_label = classes[class_index]
     predicted_probability = float(probabilities[class_index])
 
     surface_name = normalize_surface(predicted_label)

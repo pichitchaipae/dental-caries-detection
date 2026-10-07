@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from app.config import settings
 from app.db import get_engine
+from models.registry import verify_artifacts
 from app.runner import InferenceRunner
 
 logging.basicConfig(level=getattr(logging, settings.log_level.upper(), logging.INFO))
@@ -26,7 +27,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Dental Caries Detection ML Service",
-    description="YOLOv8-based dental caries detection service (Phase 2)",
+    description="Multi-stage dental caries inference service (Phase 2)",
     lifespan=lifespan,
 )
 
@@ -51,9 +52,13 @@ def cancel():
 
 @app.get("/health")
 def health():
+    artifacts = verify_artifacts(
+        settings.weights_dir,
+        enable_crop_segmenter=settings.enable_crop_segmenter,
+    )
     return {
-        "ready": True,
-        "artifacts": {},
+        "ready": artifacts.is_ready(),
+        "artifacts": artifacts.as_dict(),
         "active_job_id": runner.active_job_id
     }
 

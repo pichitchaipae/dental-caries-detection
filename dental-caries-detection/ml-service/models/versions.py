@@ -23,16 +23,16 @@ MODEL_VERSIONS: dict[str, dict] = {
         "description": "Detectron2 Mask R-CNN ResNet-50 FPN — 1-class tooth crop segmentation",
     },
     "caries_detector": {
-        "version": "caries_detect",
+        "version": "caries-yolo-proximal-occlusal-v1",
         "filename": "caries_detect.pt",
         "sha256": "515e09fe1a11c683dfaa94156a679bdbee7ab177848c6558a63f159cbf8dc1fd",
         "architecture": "yolo_detect",
-        "description": "YOLOv8 caries lesion detector on panoramic radiograph (conf=0.005)",
+        "description": "YOLOv8 lesion detector; runtime confidence is configurable and defaults to 0.02",
     },
     "surface_classifier": {
-        "version": "20260806",
+        "version": "run3-rf-14features",
         "filename": "rf_classify_ml.pkl",
-        "sha256": "2d1091b7842e7ddfeeebadea96895226c48b27ce05db0b97824fde7079ad9470",
+        "sha256": "201459b7a54e8b32b4ac4ed7ca77a198e622d9237e98b50c3426ca048d0e2686",
         "architecture": "random_forest",
         "n_features": 14,
         "feature_cols": [
@@ -41,6 +41,6 @@ MODEL_VERSIONS: dict[str, dict] = {
             "y_range", "x_centroid_dist", "aspect_ratio", "coverage",
         ],
         "classes": ["Distal", "Mesial", "Occlusal"],
-        "description": "scikit-learn RandomForestClassifier (200 estimators) — surface classification",
+        "description": "Run 3 scikit-learn RandomForestClassifier (200 estimators, 14 geometric features) for surface classification; legacy artifact filename retained for deployment compatibility",
     },
 }

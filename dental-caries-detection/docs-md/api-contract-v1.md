@@ -425,9 +425,9 @@ Raw ที่ ML เขียน: ดูตัวอย่าง `backend/src/fi
 
 | # | ปัญหา | ที่อยู่ | ผลกระทบ | ความเร่งด่วน |
 |---|---|---|---|---|
-| ML-1 | `build_tooth_result()` ต้องการ `id` แต่ caller ไม่ส่ง → `TypeError` | `orchestrator.py:96-103` vs `postprocess.py:74-75` | **ทุก job ที่เจอฟัน ≥1 ซี่ fail** — ไม่มีผลลัพธ์ออกมาเลย | 🔴 ด่วนมาก (แก้: `for i, det in enumerate(detections)` แล้วส่ง `id=i`) |
+| ML-1 | `build_tooth_result()` ต้องการ `id` แต่ caller ไม่ส่ง → `TypeError` | `orchestrator.py` / `postprocess.py` | **แก้แล้ว** — orchestrator ส่ง `id` จาก index ของ detection | ✅ |
 | ML-2 | ผล Stage 2/3 เก็บใน dict keyed ด้วย `fdi` + ไม่มี IoU dedupe ฟันซ้ำ | `pca_alignment.py:181`, `surface_classification.py:285`, `detection.py:76-106` | ฟันซ้ำ FDI ได้ axes/surfaces ทับกัน, "All detected teeth" มีซี่ซ้ำ | 🟠 สูง (key ด้วย index + dedupe IoU>0.5 แบบ `reserch/week4/inference.py:474`) |
-| ML-3 | `CARIES_CONF=0.005` รับแทบทุก box | `config.py:12`, `docker-compose.yml` | ฟันผุ false positive เยอะ | 🟠 สูง |
+| ML-3 | `CARIES_CONF=0.005` รับแทบทุก box | `config.py`, `docker-compose.yml` | **แก้เบื้องต้น** — ค่า default/runtime เปลี่ยนเป็น `0.02`; ต้องประเมิน detector เพิ่มเพราะ threshold ไม่ได้แก้ model recall/precision ทั้งหมด | 🟡 ตรวจต่อ |
 | ML-4 | RF ได้ input เป็น vertex ของ polygon + grid จุดของ caries box แทน pixel coordinates แบบตอนเทรน | `surface_classification.py:182,246`, `detection.py:116-122` | feature `coverage` ผิดสเกล → surface/probability ไม่น่าเชื่อ | 🟠 สูง |
 | ML-5 | fallback ใส่ `probability: 0.0` แต่ label ยังเป็น caries | `surface_classification.py:197,223` | backend แปลงเป็น `null` ให้แล้ว (ไม่ต้องแก้ด่วน) | 🟢 ต่ำ |
 | ML-6 | ไม่ส่ง model versions / timings | `orchestrator.py:106` (มีข้อมูลใน `models/versions.py`) | `meta.models`="unknown", `timings_ms`={} | 🟢 ต่ำ — ขอให้ส่ง `meta.models:{detector, classifier}` และ `meta.timings_ms:{detection, pca, classification}` |

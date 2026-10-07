@@ -80,7 +80,7 @@ def run_pipeline(job_id: int, settings: Settings, models: dict) -> None:
         # ----------------------------------------------------------------
         img_h, img_w = image.shape[:2]
         teeth_results = []
-        for det in detections:
+        for tooth_id, det in enumerate(detections):
             axes = axes_by_fdi.get(det.fdi)
             axes_dict = (
                 {
@@ -94,6 +94,7 @@ def run_pipeline(job_id: int, settings: Settings, models: dict) -> None:
             )
             surfaces = findings_by_fdi.get(det.fdi, [])
             tooth_entry = build_tooth_result(
+                id=tooth_id,
                 fdi=det.fdi,
                 bbox_xywh=det.bbox_xywh,
                 mask_polygon=det.tooth_polygon,

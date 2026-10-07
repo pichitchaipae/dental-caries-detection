@@ -9,7 +9,9 @@ class Settings(BaseSettings):
     shared_dir: str = Field("/shared", alias="SHARED_DIR")
     weights_dir: str = Field("/weights", alias="WEIGHTS_DIR")
     device: str = Field("cpu", alias="ML_DEVICE")
-    caries_conf: float = Field(0.005, alias="CARIES_CONF")
+    # 0.005 admitted almost every low-confidence box on case 1. Keep this
+    # configurable, but use a less permissive default for production.
+    caries_conf: float = Field(0.02, alias="CARIES_CONF")
     detection_threshold: float = Field(0.25, alias="DETECTION_THRESHOLD")
     enable_crop_segmenter: bool = Field(True, alias="ENABLE_CROP_SEGMENTER")
     log_level: str = Field("info", alias="LOG_LEVEL")
