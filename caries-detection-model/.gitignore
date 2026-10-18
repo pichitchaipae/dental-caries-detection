@@ -1,0 +1,6 @@
+# never commit training artifacts / crops / bytecode (large)
+cache/
+outputs/*
+!outputs/PROTOCOL_LOCK.md
+__pycache__/
+*.pyc
