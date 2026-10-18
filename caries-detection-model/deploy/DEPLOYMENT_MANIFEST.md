@@ -14,6 +14,22 @@
 
 ---
 
+## 0. Code revision (ซอร์สโค้ดที่ผลิต artifacts ชุดนี้)
+
+| รายการ | ค่า |
+|---|---|
+| commit | `631c3a36` (`git rev-parse HEAD` สำหรับ hash เต็ม) |
+| ข้อความ | `feat(caries-detection-model): image-domain CNN surface classifier + CPU staging service` |
+| ขอบเขต | 16 ไฟล์ / +5,466 บรรทัด — รวม `.gitignore`, `PROTOCOL_LOCK.md`, `deploy/DEPLOYMENT_MANIFEST.md` |
+| repo / branch | `D:\Mahidol University\SP` (branch `main`) |
+| คำสั่งที่ใช้ผลิต artifacts | `run_stage2_matrix.ps1` (คิว 4 run: `pca42` → `off42` → `pca43` → `off43`) · `run_calibrate_cpu.py` (บังคับ CPU) · `deploy/run_staging.ps1` |
+| **ไม่**รวมใน commit | `outputs/**` (weights, calibration, OOF, evidence) — ผูกด้วย SHA256 ในตาราง §1.1-§1.2 แทน |
+
+> `631c3a36` เกิดจาก `git commit --amend -F` ของ `8d6cef7` เพื่อแก้คำผิดในข้อความ commit เท่านั้น
+> (ไม่มีไฟล์ใดถูก stage ตอน amend → tree ของทั้งสอง commit เหมือนกันทุกไบต์) — **เวลาอ้างในรายงานให้ใช้ `631c3a36`**
+
+---
+
 ## 1. Artifacts และ SHA256
 
 ### 1.1 Calibration / evidence (ยืนยันแล้ว)
@@ -37,8 +53,10 @@
 ที่มา: `Get-FileHash` โดยผู้ใช้ (2026-10-18) ตรงกับ sha256 ที่ `/health` รายงานตอนโหลด 5 fold
 
 > **ไม่นับเป็น weights ของ release:** `outputs/best_pca_s42_f3_last.pt`, `best_pca_s42_f4_last.pt`
-> (`C5080407…E5CA`, `23FDB6DE…5ADD`) เป็น **scratch ของขั้น resume** (fold ที่ต่อจาก epoch 6/7) ไม่ใช่โมเดล
-> ที่ให้บริการ — `/health` ยืนยันว่าโหลด 5 checkpoint ตามเลข fold เท่านั้น ไม่หยิบไฟล์ `_last`
+> (`C5080407…E5CA`, `23FDB6DE…5ADD`) เป็น **snapshot ต่อ epoch สำหรับ resume** (`pipeline.py:1439` เขียน
+> `{prefix}_last.pt` ทุก epoch — หลักฐานว่าไม่ใช่ของเฉพาะ fold ที่ resume: run `off42` ที่เทรนรวดเดียว
+> มีไฟล์นี้ **ครบทั้ง 5 fold**) · สาเหตุที่ `pca42` เหลือเฉพาะ f3/f4 **ยังไม่ได้ตรวจยืนยัน** (ไม่กระทบการให้บริการ)
+> — `/health` และ `glob("best_pca_s42_f[0-9].pt")` ยืนยันว่าโหลด 5 checkpoint ตามเลข fold เท่านั้น ไม่หยิบ `_last`
 >
 > คำสั่งแจกแจง weights ของ release (กรอง scratch ออก):
 >
