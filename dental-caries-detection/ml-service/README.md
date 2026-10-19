@@ -1,7 +1,7 @@
 # Dental Caries Detection - ML Service
 
 Python microservice for the multi-stage dental caries pipeline: panoramic tooth
-segmentation, lesion detection, PCA alignment, and Random Forest surface
+segmentation, caries detection, PCA alignment, and Random Forest surface
 classification.
 
 ## Technology Stack
@@ -12,22 +12,94 @@ classification.
 - **Server**: Uvicorn (ASGI)
 - **Containerization**: Docker
 
+## Project Structure
+
+```text
+ml-service/
+├── app/
+│   ├── main.py                 # FastAPI application entry point
+│   ├── config.py               # Runtime configuration
+│   ├── db.py                   # Job state database access
+│   ├── runner.py               # Inference process lifecycle
+│   └── pipeline/
+│       ├── detection.py        # Tooth/caries detection and ownership mapping
+│       ├── pca_alignment.py    # Tooth PCA axes
+│       ├── surface_classification.py
+│       ├── surface_cnn.py      # Stage 3b CNN surface model (off | shadow | cnn)
+│       └── orchestrator.py     # End-to-end inference and result publishing
+├── models/
+│   ├── registry.py             # Artifact verification and model loading
+│   └── versions.py             # Model artifact manifest
+├── Dockerfile
+├── requirements.txt
+└── README.md
+```
+
 ## Runtime model artifacts
 
-```
 The service loads the files listed in `models/versions.py` from `WEIGHTS_DIR`
 (default `/weights`):
 
 | Logical model | Artifact | Purpose |
 |---|---|---|
 | `pano_detector` | `Tooth_seg_pano_20250319.pt` | Detect and segment FDI teeth |
-| `caries_detector` | `caries_detect.pt` | Detect candidate lesions |
+| `caries_detector` | `caries_detect.pt` | Detect candidate caries |
 | `crop_segmenter` | `Tooth_seg_crop_20250424.pth` | Optional tooth-mask refinement |
-| `surface_classifier` | `rf_classify_ml.pkl` | Run 3 RF classifier using 14 features |
+| `surface_classifier` | `dental_caries_surface_random_forest_13_features.pkl` | Production Random Forest classifier using the verified 13-feature geometric contract |
+| `surface_cnn` (Stage 3b) | `cnn_pca42/best_pca_s42_f{0..4}.pt` + `cnn_pca42/calibration_pca.json` | 5-fold EfficientNet-B0 per-tooth CNN (Distal/Mesial/Occlusal). Not listed in `versions.py`; loaded by `app/pipeline/surface_cnn.py` from `SURFACE_CNN_DIR` (default `/weights/cnn_pca42`) |
 
-`rf_classify_ml.pkl` is retained as a deployment-compatible legacy filename;
-the logical name `surface_classifier` should be used in code and diagnostics.
-```
+## Surface CNN (Stage 3b)
+
+`SURFACE_CNN_MODE` selects which model produces the surface findings (environment
+only; the code default is `off`):
+
+| Mode | Behaviour |
+|---|---|
+| `off` | CNN not loaded/run; RF findings only |
+| `shadow` | CNN probabilities are stored under the separate `shadow_cnn` result key; RF findings stay primary |
+| `cnn` | Calibrated CNN findings become primary (`method: "CNN"`); the RF is kept as a fallback |
+
+| Environment variable | Default | Purpose |
+|---|---|---|
+| `SURFACE_CNN_MODE` | `off` | `off` / `shadow` / `cnn` |
+| `SURFACE_CNN_DIR` | `/weights/cnn_pca42` | Folder with `best_pca_s42_f[0-9].pt` + calibration |
+| `SURFACE_CNN_CALIB` | `<DIR>/calibration_pca.json` | Temperature + per-surface thresholds |
+| `SURFACE_CNN_DEVICE` | `ML_DEVICE` or `cpu` | `cpu` or `cuda` |
+| `SURFACE_CNN_THREADS` | `4` | torch thread count |
+| `SURFACE_CNN_MAX_TEETH` | `0` (no limit) | Skip the stage above this tooth count |
+
+Result keys added by Stage 3b (unknown to the backend/frontend zod schemas and
+therefore stripped, so the existing API contract is unchanged):
+
+- `surface_source`: `"cnn"` or `"rf"` — which model produced `teeth[].surfaces[]`
+- `shadow_cnn`: evidence block (`mode`, `ready`, `n_teeth`, `teeth[]`, `notes`, `info`, `timings_ms`)
+
+Fallback to the RF findings (recorded as `surface_source: "rf"`, never a failed
+job) happens when the bundle cannot load, produced no predictions, or no
+calibration thresholds are available. Rollback is one line: set
+`SURFACE_CNN_MODE=shadow` (or `off`) and run `docker compose up -d ml-service`.
+
+Full method, evidence and limitations: `docs-md/surface-cnn-full-report.md`.
+
+## Inference tuning parameters
+
+The following values belong to the production integration pipeline in
+`app/pipeline/detection.py`; they are not parameters from the production RF
+training/evaluation script:
+
+| Parameter | Value | Purpose |
+|---|---:|---|
+| `CARIES_CONF` | `0.02` | Minimum confidence accepted from the YOLO caries detector |
+| `CARIES_IOU` | `0.30` | NMS IoU used by the caries detector |
+| `MIN_OWNERSHIP_SCORE` | `0.25` | Minimum tooth-mask score for assigning caries to a tooth |
+| `POINT_CLOUD_DENSITY` | `5` | Grid spacing used to approximate points inside a caries box |
+
+The reference RF pipeline starts after caries points are already available from
+annotations/XML. It trains and evaluates the surface classifier, so it does
+not need to define YOLO confidence, NMS, tooth ownership, or bbox point-cloud
+sampling. These production values are therefore integration assumptions and
+must be calibrated against detector evaluation data; they must not be
+described as values copied from the RF reference pipeline.
 
 ## Setup
 
@@ -74,9 +146,11 @@ Get model metadata and configuration.
 | `ML_SERVICE_PORT` | `8000` | Service port |
 | `ML_SERVICE_HOST` | `0.0.0.0` | Service host |
 | `WEIGHTS_DIR` | `/weights` | Directory containing all model artifacts |
-| `CARIES_CONF` | `0.02` | Minimum lesion confidence |
+| `CARIES_CONF` | `0.02` | Minimum caries confidence |
+| `CARIES_IOU` | `0.30` | Caries detector NMS IoU |
+| `POINT_CLOUD_DENSITY` | `5` | Caries bounding-box point-cloud spacing |
 | `DETECTION_THRESHOLD` | `0.25` | Minimum tooth confidence |
-| `ENABLE_CROP_SEGMENTER` | `true` | Enable optional crop-mask refinement |
+| `ENABLE_CROP_SEGMENTER` | `false` | Enable optional crop-mask refinement; disabled to match the reference RF pipeline |
 | `LOG_LEVEL` | `info` | Logging level |
 
 ## Running Tests

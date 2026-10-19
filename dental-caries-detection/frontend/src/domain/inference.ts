@@ -6,7 +6,7 @@ export interface SurfaceFinding {
   name: 'mesial' | 'distal' | 'occlusal';
   label: 'caries';
   probability: number | null;
-  method: 'RF' | 'XThirds_Fallback';
+  method: 'RF' | 'XThirds_Fallback' | 'CNN';
 }
 
 export interface ToothAxes {
@@ -48,7 +48,7 @@ const surfaceFindingSchema = z.object({
   name: z.enum(['mesial', 'distal', 'occlusal']),
   label: z.literal('caries'),
   probability: z.number().min(0).max(1).nullable(),
-  method: z.enum(['RF', 'XThirds_Fallback']),
+  method: z.enum(['RF', 'XThirds_Fallback', 'CNN']),
 });
 const toothSchema = z.object({
   id: z.number().int(),

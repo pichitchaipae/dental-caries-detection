@@ -43,7 +43,7 @@ const rawResultSchema = z.object({
 });
 
 const surfaceNames = new Set(['mesial', 'distal', 'occlusal']);
-const surfaceMethods = new Set(['RF', 'XThirds_Fallback']);
+const surfaceMethods = new Set(['RF', 'XThirds_Fallback', 'CNN']);
 
 export interface ApiInferenceData {
   meta: {
@@ -70,7 +70,7 @@ export interface ApiInferenceData {
       name: 'mesial' | 'distal' | 'occlusal';
       label: 'caries';
       probability: number | null;
-      method: 'RF' | 'XThirds_Fallback';
+      method: 'RF' | 'XThirds_Fallback' | 'CNN';
     }>;
   }>;
 }
@@ -112,14 +112,14 @@ export function adaptInferenceResult(raw: unknown): ApiInferenceData {
     for (const surface of tooth.surfaces) {
       const name = normalizeSurfaceName(surface.name);
       const method = surfaceMethods.has(surface.method ?? '')
-        ? (surface.method as 'RF' | 'XThirds_Fallback')
+        ? (surface.method as 'RF' | 'XThirds_Fallback' | 'CNN')
         : (() => {
             throw new Error(`Unsupported surface method: ${surface.method ?? 'missing'}`);
           })();
       const finding = {
         name,
         label: 'caries' as const,
-        probability: method === 'RF' ? (surface.probability ?? null) : null,
+        probability: method === 'XThirds_Fallback' ? null : (surface.probability ?? null),
         method,
       };
       const previous = surfaces.get(name);
