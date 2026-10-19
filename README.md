@@ -18,7 +18,7 @@
 [![Detectron2](https://img.shields.io/badge/Detectron2-Facebook%20Research-7B2FBE?style=flat-square&logo=meta&logoColor=white)](https://github.com/facebookresearch/detectron2)
 [![OpenCV](https://img.shields.io/badge/OpenCV-4.x-5C3EE8?style=flat-square&logo=opencv&logoColor=white)](https://opencv.org/)
 [![Jupyter](https://img.shields.io/badge/Jupyter-Notebook-F37626?style=flat-square&logo=jupyter&logoColor=white)](https://jupyter.org/)
-[![Status](https://img.shields.io/badge/Status-Phase%202%20Complete-2ea44f?style=flat-square)]()
+[![Status](https://img.shields.io/badge/Status-Phase%202%20%2B%20CNN%20deployed-2ea44f?style=flat-square)]()
 
 <br>
 
@@ -31,6 +31,22 @@
 Naris Pholpak 6687025 &nbsp;·&nbsp; Pichitchai Paecharoenchai 6687033 &nbsp;·&nbsp; Sukollapat Pisuchpen 6687052
 
 </div>
+
+---
+
+## Current status (October 2026)
+
+The repository currently holds three things:
+
+- **`reserch/`** — the research phase: Phase 1 PCA orientation, Phase 2 spatial zoning and the weekly sprint history (sections 1–12 below).
+- **`dental-caries-detection/`** — the deployed system: FastAPI ml-service (stages 1–3b), TypeScript backend, React frontend and Docker Compose.
+- **`caries-detection-model/`** — the CNN training, calibration and evaluation pipeline behind the deployed surface model.
+
+The deployed surface classifier is the **5-fold PCA-42 CNN (Stage 3b)**; the Random Forest classifier is kept as fallback — see [§13](#13-deployed-system-cnn-surface-model).
+
+- Surface-model report: [`dental-caries-detection/docs-md/surface-cnn-full-report.md`](dental-caries-detection/docs-md/surface-cnn-full-report.md)
+- Service documentation: [`dental-caries-detection/ml-service/README.md`](dental-caries-detection/ml-service/README.md)
+- Pipeline and API data-flow map: [`dental-caries-detection/docs-md/ml-service-data-flow.md`](dental-caries-detection/docs-md/ml-service-data-flow.md)
 
 ---
 
@@ -48,6 +64,7 @@ Naris Pholpak 6687025 &nbsp;·&nbsp; Pichitchai Paecharoenchai 6687033 &nbsp;·&
 10. [Conclusion](#10-conclusion)
 11. [References](#11-references)
 12. [Development Notes](#12-development-notes)
+13. [Deployed System: CNN Surface Model](#13-deployed-system-cnn-surface-model)
 
 ---
 
@@ -61,6 +78,7 @@ The pipeline spans detection, segmentation, mapping, and geometric surface class
 
 - **Phase 1:** Explored 7 PCA-based orientation methods for tooth normalization, selecting the *Split-Centroid Anatomy* method (Macro F1: 0.41) as the most robust.
 - **Phase 2:** Refined surface classification through spatial zoning strategies, with the *X-Thirds Dominant Zone* selected as the final model (Accuracy: 70.54%, Macro F1: 0.4714).
+- **Deployment (2026):** in the deployed service the geometric zoning classifier was replaced by a per-tooth CNN trained on the same annotations, with the Random Forest kept as fallback — see [§13](#13-deployed-system-cnn-surface-model).
 
 Caries are classified onto three anatomical surfaces:
 
@@ -142,52 +160,52 @@ Two zoning strategies were evaluated:
 
 ## 4. Repository Structure
 
+Current tracked layout of the repository (the research history now lives under `reserch/`):
+
 ```text
-SP/
-├── README.md                              # Project documentation and setup guide
-├── requirements.txt                       # Core Python dependencies
-├── cleanup-log.md                         # Log of atomic restructuring operations
+SP/                                          # repository root
+├── README.md                                # This document
 │
-├── assets/                                # Static assets (logos, images)
-├── data/                                  # Datasets and pre-trained models (~1.63 GB)
-│   ├── 500 cases with annotation/         # Panoramic X-rays + XML annotations
-│   ├── 500-roi/                           # Region of Interest masks
-│   └── Tooth Segmentation + Recognition model/  # Pre-trained Detectron2 weights
-├── docs/                                  # Architectural diagrams and documentation
-├── outputs/                               # Diagnostics and system execution logs
-├── scripts/                               # Utility and helper scripts
+├── dental-caries-detection/                 # ★ Deployed system
+│   ├── ml-service/                          # FastAPI inference service: stages 1–3b + test harnesses
+│   ├── backend/                             # API service and result adapter (TypeScript)
+│   ├── frontend/                            # Web UI (React + Vite)
+│   ├── docs-md/                             # API contract, data-flow map, surface-CNN report
+│   └── docker-compose.yml                   # db + ml-service + backend + frontend
 │
-├── phase2-1april/                         # ★ FINAL PIPELINE: Integration notebooks & PCA outputs
-├── week1/                                 # Sprint 1: Segmentation model training scripts
-├── week2/                                 # Sprint 2: 500-case batch segmentation pipeline
-├── week2-Tooth Detection & Segmentation/  # Generated artifacts (~39.37 GB)
-├── week3/                                 # Sprint 3: Caries-to-tooth mapping logic
-├── week3-Caries-to-Tooth Mapping/         # Generated mapping snapshots
-├── week4/                                 # Sprint 4: Caries inference pipeline integration
-├── week5/                                 # Sprint 5: Surface Classification v1
-├── week5-Surface Classification v1/       # Generated v1 artifacts
-├── week6/                                 # Sprint 6: Surface Classification v2 & Evaluation Engine
-├── week7/                                 # Sprint 7: Evaluation workflows & dashboards
-├── week7-Surface Classification v3/       # Generated v3 artifacts
-├── week8-Surface Classification v4/       # Generated v4 artifacts
-├── week9_pca_evaluation/                  # Sprint 9: Core PCA algorithm evaluation
+├── caries-detection-model/                  # CNN training / calibration / evaluation
+│   ├── pipeline.py                          # build → train → eval → calibrate → report (locked protocol)
+│   ├── deploy/                              # Staging service + parity / smoke tests
+│   └── outputs/                             # PROTOCOL_LOCK.md, calibration, OOF comparison
 │
-├── _non-using/                            # Deprecated/archived experiments (~15.57 GB)
-├── _organizer-reports/                    # Filesystem inventory and duplication analysis
-├── _unsorted/                             # Files pending manual review
-└── _trash/                                # Non-destructive staging area for cache artifacts
+├── ml_model/                                # Model weights and research artifacts
+│
+├── reserch/                                 # Research phase 1–2 (sprint history)
+│   ├── phase2-1april/                       # ★ Final research pipeline + report_v4.5 / report_v4.6
+│   ├── week1/ … week7/ · weekphase2/        # Weekly sprint work
+│   ├── assets/ · images/ · scripts/ · src/  # Figures, tooling and helper code
+│   └── requirements.txt · cleanup-log.md · README.md
+│
+├── caries_surface_classification/           # Earlier standalone surface-classifier prototype
+├── z-claude-md/ · _trash/ · .github/workflows/
+└── data/                                    # Dataset (~1.63 GB) — NOT tracked in git
 ```
+
+> **Not tracked in git** (large datasets and generated artifacts — present in a developer's working tree only): `data/`, `week2-Tooth Detection & Segmentation/`, `week3-Caries-to-Tooth Mapping/`, `week5-Surface Classification v1/`, `week6/`, `week7-Surface Classification v3/`, `week8-Surface Classification v4/`, `week9_pca_evaluation/`, `_non-using/`, model weights and `ml-service/weights/`.
 
 ### Key Files
 
 | File | Description |
 |---|---|
-| `phase2-1april/pipeline-phase1-v4.ipynb` | **Primary notebook** — orchestrates the complete Phase 2 pipeline |
-| `phase2-1april/report_v4.5.txt` | Evaluation report for the **v4.5 X-Thirds Dominant** algorithm |
-| `phase2-1april/report_v4.6.txt` | Evaluation report for the **v4.6 Diagonal-from-Centroid** algorithm |
-| `week2/process_500_cases.py` | Batch processor for full 500-case tooth segmentation |
-| `week4/run_full_batch_v3_advanced.py` | Advanced batch runner for caries detection inference |
-| `week6/evaluation_engine.py` | Standardized evaluation framework used across all sprint iterations |
+| `dental-caries-detection/ml-service/app/pipeline/orchestrator.py` | Inference pipeline: stages 1–3 (detection, PCA, RF) plus the Stage 3b CNN hook |
+| `dental-caries-detection/ml-service/app/pipeline/surface_cnn.py` | Stage 3b CNN surface model (`run_shadow()` / `primary_findings()`) |
+| `caries-detection-model/pipeline.py` | CNN build → train → evaluate → calibrate → report pipeline |
+| `reserch/phase2-1april/pipeline-sp-ml-optimize.ipynb` | Phase 2 integration notebook (also `pipeline-phase1-v3.ipynb`) |
+| `reserch/phase2-1april/report_v4.5.txt` | Evaluation report for the **v4.5 X-Thirds Dominant** algorithm |
+| `reserch/phase2-1april/report_v4.6.txt` | Evaluation report for the **v4.6 Diagonal-from-Centroid** algorithm |
+| `reserch/week2/process_500_cases.py` | Batch processor for full 500-case tooth segmentation |
+| `reserch/week4/run_full_batch_v3_advanced.py` | Advanced batch runner for caries detection inference |
+| `reserch/week6/evaluation_engine.py` | Standardized evaluation framework used across all sprint iterations |
 
 ---
 
@@ -201,14 +219,17 @@ conda create -n dental_caries python=3.10 -y
 conda activate dental_caries
 
 # 2. Install base dependencies
-pip install -r requirements.txt
+pip install -r reserch/requirements.txt
 
 # 3. Install Detectron2 (GPU: ensure matching CUDA toolkit is installed first)
 python -m pip install 'git+https://github.com/facebookresearch/detectron2.git'
 
 # 4. (Optional) Install Week 2 legacy dependencies
-pip install -r week2/requirements.txt
+pip install -r reserch/week2/requirements.txt
 ```
+
+> The research scripts below keep legacy relative paths, so run them from the `reserch/` directory (or copy the folders next to the scripts).
+> The deployed system has its own setup — Docker Compose, no local Python environment needed. See [§13](#13-deployed-system-cnn-surface-model).
 
 ---
 
@@ -218,13 +239,13 @@ pip install -r week2/requirements.txt
 
 ```bash
 # Tooth segmentation across full 500-case dataset
-python week2/process_500_cases.py
+python reserch/week2/process_500_cases.py
 
 # Caries detection batch inference
-python week4/run_full_batch_v3_advanced.py
+python reserch/week4/run_full_batch_v3_advanced.py
 
 # Surface classification batch
-python week5/process_surface_classification.py
+python reserch/week5/process_surface_classification.py
 ```
 
 ### Interactive — Jupyter Notebook
@@ -232,7 +253,7 @@ python week5/process_surface_classification.py
 For step-by-step execution with visualizations:
 
 1. Launch Jupyter: `jupyter notebook` or `jupyter lab`
-2. Open `phase2-1april/pipeline-phase1-v4.ipynb`
+2. Open `reserch/phase2-1april/pipeline-sp-ml-optimize.ipynb` (or `pipeline-phase1-v3.ipynb`)
 3. Update the data and model directory paths in the configuration cells
 4. Run cells sequentially from top to bottom
 
@@ -241,6 +262,8 @@ For step-by-step execution with visualizations:
 ## 7. Dataset Specifications
 
 Data was provided by the **Faculty of Dentistry, Mahidol University**.
+
+> The dataset is **not tracked in git** (~1.63 GB in total) — it lives at `data/` in a developer's working tree only, so the paths below are working-tree paths, not repository paths.
 
 | Component | Path | Size | Description |
 |---|---|---|---|
@@ -272,6 +295,8 @@ Data was provided by the **Faculty of Dentistry, Mahidol University**.
 
 Evaluated on **1,979 samples** from the full 500-case dataset.
 
+> This section reports the **research (Phase 2)** comparison of the two geometric zoning strategies. The deployed service classifies surfaces with the CNN of [§13](#13-deployed-system-cnn-surface-model) instead; its end-to-end operating point is reported there.
+
 ### Model Performance
 
 | Metric | X-Thirds Dominant ✦ | Diagonal-from-Centroid |
@@ -302,8 +327,8 @@ Two tests were applied to determine whether the accuracy difference is statistic
 | Diagonal-from-Centroid | Improved Occlusal detection | Major Distal performance drop due to geometric distortion |
 
 Visualization outputs (PCA axis overlays, classification boundary renders):
-- `phase2-1april/PCA_Output_v4.5/`
-- `phase2-1april/PCA_Output_v4.6/`
+- `reserch/phase2-1april/PCA_Output_Run3/` — PCA axis overlays for the run-3 evaluation
+- `reserch/phase2-1april/classification_metrics_run3.png` · `confusion_matrix_run3.png` · `feature_importance.png`
 
 ---
 
@@ -327,6 +352,7 @@ This project presents a complete, interpretable pipeline for automated dental ca
 - **Phase 1** explored 7 PCA-based orientation methods; the **Split-Centroid Anatomy** approach (Macro F1: 0.41) was selected as the most robust.
 - **Phase 2** evaluated two spatial zoning strategies on 1,979 samples. The **X-Thirds Dominant Zone** (Accuracy: **70.54%**, Macro F1: **0.4714**) outperformed Diagonal-from-Centroid (60.28%, 0.4601).
 - Statistical validation confirmed the accuracy improvement is significant (Z-Test p < 0.05), while F1-scores are not significantly different (Bootstrap p = 0.28) — reflecting the influence of class imbalance.
+- **Deployment (2026):** the production service replaced the geometric classifier with a per-tooth CNN — a 5-fold EfficientNet-B0 ensemble with temperature-scaled per-surface thresholds — keeping the 13-feature Random Forest as fallback. See [§13](#13-deployed-system-cnn-surface-model).
 
 The final model demonstrates that combining geometric reasoning with statistical validation provides a reliable, clinically interpretable framework for medical image analysis.
 
@@ -351,9 +377,43 @@ The final model demonstrates that combining geometric reasoning with statistical
 | Topic | Note |
 |---|---|
 | **Path Compatibility** | Directories with legacy spaces (e.g., `500 cases with annotation/`) are intentionally preserved for backward compatibility with `week*` scripts. |
-| **Pending Review** | `_unsorted/pipeline-phase1-v3_backup.ipynb` (relocated from root) is awaiting manual code review. |
-| **Deduplication** | `_organizer-reports/` contains CSV/TXT duplication analysis logs. Review thoroughly before running any destructive deduplication operations. |
+| **Pending Review** | `reserch/_unsorted/pipeline-phase1-v3_backup.ipynb` (relocated from the old root) is awaiting manual code review. |
+| **Deduplication** | `reserch/_organizer-reports/` contains CSV/TXT duplication analysis logs. Review thoroughly before running any destructive deduplication operations. |
 | **Deletion Policy** | `_trash/` is a non-destructive staging area for cache artifacts only (`__pycache__` trees). No experimental results or user-generated data have been permanently deleted. |
+| **Model weights** | The service reads its weights from a bind-mounted folder (`dental-caries-detection/ml-service/weights/`, git-ignored). Weights are never committed; only their SHA-256 hashes are recorded (`docs-md/surface-cnn-full-report.md` §5). |
+
+---
+
+## 13. Deployed System: CNN Surface Model
+
+The surface classifier shipped in `dental-caries-detection/` is **Stage 3b**: a per-tooth CNN trained by `caries-detection-model/pipeline.py` under the locked protocol recorded in `caries-detection-model/outputs/PROTOCOL_LOCK.md`.
+
+| Item | Value |
+|---|---|
+| Architecture | `efficientnet_b0` (feature dim 1280) + `Dropout(0.3)` + `Linear(1280, 3)` sigmoid head (multi-label) |
+| Input | 384×384 tooth crop, ablation `pca` (PCA axis alignment, no CLAHE), focal loss (γ = 2) |
+| Ensemble | 5 folds × 14 epochs, seed 42 (seed 43 kept as a training-variance replicate) |
+| Output | Distal / Mesial / Occlusal probability per tooth lesion |
+| Calibration | Per-surface temperature scaling + per-surface thresholds fitted on the 100 peeked calibration cases of the locked protocol, target recall 0.85 |
+| Weights | `dental-caries-detection/ml-service/weights/cnn_pca42/` (bind-mounted read-only; not tracked in git) |
+| Serving switch | `SURFACE_CNN_MODE` = `off` (default) · `shadow` · `cnn`; the deployed stack is configured with `cnn` |
+| Fallback | The Random Forest surface classifier (`surface_source` = `rf`), used when the CNN bundle or its calibration is unavailable |
+
+### End-to-end operating point
+
+Measured on the real engine path (YOLO → mask-derived crop → CNN) with the per-fold out-of-fold thresholds and **no re-tuning** after the test results were seen — 201 cases / 6,012 teeth on CPU:
+
+| Surface | AP | Recall | Precision |
+|---|:---:|:---:|:---:|
+| Distal | ≈ 0.579 | 0.781 | 0.335 |
+| Mesial | ≈ 0.465 | 0.726 | 0.247 |
+| Occlusal | ≈ 0.582 | 0.853 | 0.164 |
+
+- Runtime: 358.2 s for 201 cases ≈ 1.78 s/case ≈ 60 ms/tooth (CPU).
+- Pre-declared end-to-end gate (ΔAP versus the cached-crop arm, budget ≤ 0.05): −0.0507 / −0.0877 / −0.0227 → **Distal and Mesial fail, Occlusal passes**. The gate outcome was accepted explicitly before deployment, and the reasoning is recorded in the report below; the Random Forest stays available as the fallback path.
+- Container parity (staging host vs. container, CPU): 6/6 exact output hashes, maximum probability difference 2.272e-07.
+
+Method, protocol, calibration table, per-fold thresholds and limitations: [`dental-caries-detection/docs-md/surface-cnn-full-report.md`](dental-caries-detection/docs-md/surface-cnn-full-report.md)
 
 ---
 
