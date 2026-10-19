@@ -184,7 +184,14 @@ CPU-vs-CUDA float32 ไม่ใช่ความคลาดเคลื่อ
    (in-sample) → ห้ามอ่าน precision/recall จาก smoke test; ใช้ `fold` เมื่อต้องเทียบกับ OOF
 5. **ยังไม่ทดสอบ end-to-end จากภาพพาโนดิบ** — บริการนี้รับ crop+mask; เส้นทาง
    pano → ตรวจหา/แบ่งซี่ → crop → predict ยังไม่เคยรันต่อกันจริง
-6. การเปรียบเทียบ arm (control / 2 seeds) **ยังไม่ได้รัน** (`compare-oof` รอ OOF ของ off42/pca43/off43)
+6. **การเปรียบเทียบ arm (pca vs off, 2 seeds) รันแล้ว** (`compare-oof`, k=10, margin 0.05):
+   Distal ΔAP **+0.029** (non-inferior; bootstrap 95% [+0.003, +0.054]) · Mesial **+0.031** (non-inferior; [−0.001, +0.065]) ·
+   Occlusal **+0.021** (**inconclusive**; corrected-t [−0.104, +0.146]) — **ไม่มีด้านใดผ่านเกณฑ์ superior**
+   (corrected-t lower bound > 0) → ห้ามสรุปว่า `pca` ดีกว่า `off`; อ้างได้เพียง "ไม่ด้อยกว่าที่ margin 5% ของ AP"
+   ใน Distal/Mesial และ "สรุปไม่ได้" ใน Occlusal
+7. **ความแปรปรวนระหว่าง seed มีขนาดใหญ่** (pca Distal AP 0.629 ที่ seed42 vs 0.690 ที่ seed43; Occlusal 0.604 vs 0.565)
+   → ตัวเลข performance ต้องอ่านคู่กับ SD ต่อ fold และต้องระบุ seed ที่อ้างเสมอ (reference = seed 42 ตาม protocol;
+   seed 43 เป็น replication — ห้ามเลือก seed ที่ตัวเลขดีกว่า)
 
 ---
 
