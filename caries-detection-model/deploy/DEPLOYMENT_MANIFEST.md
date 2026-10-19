@@ -39,6 +39,7 @@
 | `outputs/calibration_pca.json` | `D22036F398604043482C862019F1607325C0627F959C100F6E596EC8251B9DF1` | `Get-FileHash` (ผู้ใช้รัน) |
 | `outputs/oof_pca_stratified-groupkfold_seed42_exc100.csv` | `D759A6369F8318BFE6802BD57AB9AE121E4D923D701D23F0058FA93740DADD32` | `Get-FileHash` (ผู้ใช้รัน) |
 | `outputs/oof_report_oof_pca_stratified-groupkfold_seed42_exc100.json` | `072D59974A348AE900975E3B0CA75D19C6BC2F767EFE5AB9E9CCAA02EA0099F9` | `Get-FileHash` (ผู้ใช้รัน) |
+| `outputs/deploy/health_8013.json` (runtime snapshot; `captured_at` อยู่ในไฟล์) | `5FBE8CDB047CF0AC3D94AA45445CA28EFE85F634FAB9A9462614D4FB1495074F` | `Invoke-RestMethod /health` + `Get-FileHash` (2026-10-19) |
 
 ### 1.2 Checkpoint น้ำหนัก 5 fold (weights ที่ deploy จริง)
 
@@ -132,6 +133,10 @@ positive = probs >= threshold
 (Arm: ปรับจาก 0.816/0.769/0.785 → 0.2119/0.3094/0.0587 หลังแก้บั๊ก calibrate-set; ไฟล์ที่ผิดเก็บไว้ที่
 `outputs/calibration_pca_INVALID_insample.json` เป็นหลักฐานเหตุการณ์)
 
+> **ห้ามสับสนกับ `/health`:** ฟิลด์ `checkpoints[].thresholds` ใน `/health` คือ threshold ของ **tune-half
+> แต่ละ fold** (metadata ค่ากรอบ 0.05 เช่น `0.4 / 0.55 / 0.65`) — **ไม่ใช่** threshold ที่ใช้ตัดสินใจ
+> ตัวที่ใช้จริงคือ `calibration.threshold` ในตารางข้างบนเท่านั้น
+
 **Rollback lever (ปลอดภัย):** ลบ/ย้าย `calibration_pca.json` ออกแล้วรีสตาร์ต → บริการกลับเป็น
 **probability-only** (`threshold=null`, `positive=null`) โดยไม่ล้ม — ตรวจในโค้ดบรรทัด 230-232 แล้ว
 
@@ -142,8 +147,8 @@ positive = probs >= threshold
 | # | การตรวจ | วิธี | ผล | เกณฑ์ | หลักฐาน |
 |---|---|---|---|---|---|
 | 1 | Preprocessing/inference parity | `deploy/smoke_test_effnet.py --fold 0` บน instance **ไม่ calibrated** (พอร์ต 8014) | metric max\|diff\| = **5.926e-04**, per-tooth = **2.980e-08**, 1,225 ซี่/41 เคส, จำนวนไม่ตรง → 422 | < 2e-3 / < 1e-5 | `outputs/deploy/smoke_f0_20261018T131524Z.json` |
-| 2 | Readiness/artifacts | `GET /health`, `/model/info` | ready, 5 folds, calibration loaded, `errors=[]` | — | `outputs/deploy/health_8013.json` (รอเซฟ) |
-| 3 | Decision layer | ยิง 6 ซี่จริงผ่าน HTTP เทียบกับ CSV | `positive == (prob >= thr)` ถูกทั้ง **18/18** | 100% | ผลรันของผู้ใช้ (ข้อ 2) |
+| 2 | Readiness/artifacts | `GET /health`, `/model/info` | ready, 5 folds, calibration loaded, `errors=[]`, sha256 ตรง manifest | — | `outputs/deploy/health_8013.json` (sha256 `5FBE8CDB…074F`) |
+| 3 | Decision layer | ยิง 6 ซี่จริงผ่าน HTTP เทียบกับ CSV | `positive == (prob >= thr)` ถูกทั้ง **18/18** (รันซ้ำ 2 ครั้ง ได้ค่าเดิมทุกหลัก) | 100% | ผลรันผ่าน `check_8013.py` |
 
 หมายเหตุ: ค่า 5.926e-04 **ซ้ำเดิมทุกหลัก** ในการรันซ้ำ → reproducible และเป็นสัญญาณรบกวน
 CPU-vs-CUDA float32 ไม่ใช่ความคลาดเคลื่อนของโค้ด (tolerance ข้ามอุปกรณ์ ~2e-3)
