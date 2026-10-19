@@ -2165,6 +2165,9 @@ def run_compare_oof(args) -> None:
       non_inferior    : corrected-t lower bound > -margin (fix 1). A wide
                         interval that crosses zero is NOT evidence of equality,
                         so the margin is declared before the run.
+      verdict         : SUPERIOR (lower > 0) / INFERIOR (upper < -margin) /
+                        NON-INFERIOR / INCONCLUSIVE. Failing the margin means
+                        "cannot adopt", not evidence of harm -- never "WORSE".
     """
     pairs = []
     for spec in args.pair:
@@ -2228,6 +2231,13 @@ def run_compare_oof(args) -> None:
                    float(np.percentile(mean_boot, 97.5)))
                   if mean_boot.size else (float("nan"), float("nan")))
         m, nb_lo, nb_hi = _nb_corrected_t(deltas[s], n_train, n_test)
+        _margin = float(args.margin)
+        _superior = bool(nb_lo > 0)
+        _inferior = bool(nb_hi < -_margin)
+        _non_inf = bool(nb_lo > -_margin)
+        _verdict = ("SUPERIOR" if _superior else
+                    ("INFERIOR" if _inferior else
+                     ("NON-INFERIOR" if _non_inf else "INCONCLUSIVE")))
         out["per_surface"][s] = {
             "delta_ap_foldwise": [None if v != v else round(v, 4)
                                   for v in deltas[s]],
@@ -2236,15 +2246,16 @@ def run_compare_oof(args) -> None:
             "k_estimates": len(deltas[s]),
             "n_train_per_fold": int(n_train), "n_test_per_fold": int(n_test),
             "distinguishable": bool(lo > 0 or hi < 0),
-            "superior": bool(nb_lo > 0),
-            "non_inferior": bool(nb_lo > -float(args.margin))}
+            "superior": _superior,
+            "inferior": _inferior,
+            "non_inferior": _non_inf,
+            "verdict": _verdict,
+            "margin": _margin}
         r = out["per_surface"][s]
         print("  %-8s dAP=%+.3f boot[%+.3f,%+.3f] corrected-t[%+.3f,%+.3f] "
               "k=%d  %s%s"
               % (s, r["delta_ap_mean"], lo, hi, nb_lo, nb_hi,
-                 r["k_estimates"],
-                 "SUPERIOR" if r["superior"] else
-                 ("NON-INFERIOR" if r["non_inferior"] else "WORSE"),
+                 r["k_estimates"], _verdict,
                  " (distinguishable)" if r["distinguishable"] else ""))
     _out = Path(args.out) if getattr(args, "out", None) else (
         OUTPUTS_DIR / ("compare_oof_%s.json"
