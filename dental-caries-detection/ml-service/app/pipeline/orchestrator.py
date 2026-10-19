@@ -76,6 +76,27 @@ def run_pipeline(job_id: int, settings: Settings, models: dict) -> None:
         log.info("Stage 3 complete")
 
         # ----------------------------------------------------------------
+        # Stage 3b — CNN surface model (env-gated)
+        #   off    : not run
+        #   shadow : CNN block only, RF findings stay primary
+        #   cnn    : CNN findings become primary, RF kept as fallback
+        # ----------------------------------------------------------------
+        shadow_cnn = None
+        surface_source = "rf"
+        try:
+            from app.pipeline.surface_cnn import primary_findings, run_shadow
+
+            shadow_cnn = run_shadow(image, detections)
+            findings_by_fdi, surface_source = primary_findings(
+                findings_by_fdi, shadow_cnn, detections
+            )
+            if shadow_cnn is not None:
+                log.info("Stage 3b CNN: %d teeth scored (surface_source=%s)",
+                         len(shadow_cnn.get("teeth", [])), surface_source)
+        except Exception as exc:  # the CNN must never break the job
+            log.warning("Stage 3b CNN failed: %r", exc)
+
+        # ----------------------------------------------------------------
         # Build result JSON
         # ----------------------------------------------------------------
         img_h, img_w = image.shape[:2]
@@ -114,6 +135,14 @@ def run_pipeline(job_id: int, settings: Settings, models: dict) -> None:
             },
             "teeth": teeth_results,
         }
+
+        # Stage 3b — which model produced teeth[].surfaces[]: "cnn" when the CNN
+        # was primary, "rf" when the RF is the source (off/shadow, or fallback).
+        # The CNN block stays under its own key for evidence; the zod schemas in
+        # backend/frontend strip unknown top-level keys, so this is additive.
+        result["surface_source"] = surface_source
+        if shadow_cnn is not None:
+            result["shadow_cnn"] = shadow_cnn
 
         # ----------------------------------------------------------------
         # Atomic publish

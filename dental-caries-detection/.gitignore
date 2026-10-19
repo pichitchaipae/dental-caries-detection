@@ -14,6 +14,14 @@ frontend/.vite/
 # Local dev mount of the shared working volume, if any
 shared/
 
+# Python caches
+__pycache__/
+*.pyc
+
+# Weight archives (the bind-mounted weight files themselves live in
+# ml-service/weights/ which has its own .gitignore)
+ml-service/*.zip
+
 # OS
 .DS_Store
 Thumbs.db
