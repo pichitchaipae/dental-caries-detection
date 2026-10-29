@@ -1,0 +1,60 @@
+{
+  "evidence": "new notebook evaluation",
+  "checkpoint": "D:\\Mahidol University\\SP\\dental-caries-detection\\ml-service\\weights\\caries_crop_seg_20261028.pt",
+  "checkpoint_sha256": "c0d4768fdbd90567feb28c5df34fa760321e79a08acbb47e11ba84a5c2c67d74",
+  "config": {
+    "imgsz": 640,
+    "batch": 16,
+    "device": 0,
+    "workers": 0,
+    "conf": 0.001,
+    "iou": 0.7,
+    "max_det": 300,
+    "rect": true,
+    "half": false,
+    "retina_masks": false,
+    "plots": true,
+    "save_json": false,
+    "split": "val",
+    "project": "C:\\Users\\jaopi\\AppData\\Local\\Temp\\caries_final_full_eval_zdbr4seg\\experiment\\evaluation",
+    "name": "crop_validation",
+    "exist_ok": false
+  },
+  "dataset": "D:\\Mahidol University\\SP\\dental-caries-detection\\ml-service\\datasets\\caries_crop_v1",
+  "environment": {
+    "python": "3.10.19",
+    "python_executable": "D:\\Users\\jaopi\\anaconda3\\envs\\sp_project\\python.exe",
+    "environment_prefix": "D:\\Users\\jaopi\\anaconda3\\envs\\sp_project",
+    "platform": "Windows-10-10.0.26300-SP0",
+    "torch": "2.5.1",
+    "torchvision": "0.20.1",
+    "ultralytics": "8.4.175",
+    "numpy": "2.0.1",
+    "opencv-python": "4.13.0.90",
+    "opencv-python-headless": "5.0.0.93",
+    "pandas": "2.3.3",
+    "Pillow": "11.1.0",
+    "PyYAML": "6.0.3",
+    "ipywidgets": "8.1.9",
+    "scikit-learn": "1.7.2",
+    "ipykernel": "7.2.0",
+    "detectron2": "0.6"
+  },
+  "metrics": {
+    "metrics/precision(B)": 0.5884268281036777,
+    "metrics/recall(B)": 0.5932203389830508,
+    "metrics/mAP50(B)": 0.5632640867243537,
+    "metrics/mAP50-95(B)": 0.2121734992235153,
+    "metrics/precision(M)": 0.5372791639435711,
+    "metrics/recall(M)": 0.508404695710701,
+    "metrics/mAP50(M)": 0.48428217260267864,
+    "metrics/mAP50-95(M)": 0.15732025905124183,
+    "fitness": 0.36949375827475717
+  },
+  "speed": {
+    "preprocess": 0.19306948882305047,
+    "inference": 3.0793039936100373,
+    "loss": 0.0005437699708189018,
+    "postprocess": 1.107866932901737
+  }
+}

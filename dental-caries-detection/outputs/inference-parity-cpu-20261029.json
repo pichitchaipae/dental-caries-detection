@@ -1,0 +1,156 @@
+{
+  "args": {
+    "images_root": "/workspace/data/500 cases with annotation",
+    "dataset": "datasets/caries_crop_v1",
+    "weights_dir": "weights",
+    "cases": "10",
+    "device": "cpu",
+    "out": "/audit/inference-parity-cpu-20261029.json"
+  },
+  "versions": {
+    "torch": "2.4.1+cu121",
+    "ultralytics": "8.4.191"
+  },
+  "crop_input_format": "BGR",
+  "cases": [
+    {
+      "case": 10,
+      "xml_issues": 0,
+      "teeth": 29,
+      "refined": 29,
+      "grayscale_channels_equal": true,
+      "crop_comparisons": [
+        {
+          "fdi": 27,
+          "saved_shape": [
+            356,
+            208,
+            3
+          ],
+          "live_shape": [
+            356,
+            208,
+            3
+          ],
+          "pixels_equal": true,
+          "different_pixel_fraction": 0.0
+        },
+        {
+          "fdi": 33,
+          "saved_shape": [
+            308,
+            154,
+            3
+          ],
+          "live_shape": [
+            308,
+            154,
+            3
+          ],
+          "pixels_equal": false,
+          "different_pixel_fraction": 0.00042165626581210997
+        },
+        {
+          "fdi": 11,
+          "saved_shape": [
+            406,
+            152,
+            3
+          ],
+          "live_shape": [
+            406,
+            152,
+            3
+          ],
+          "pixels_equal": false,
+          "different_pixel_fraction": 0.00014583873476795437
+        },
+        {
+          "fdi": 34,
+          "saved_shape": [
+            335,
+            176,
+            3
+          ],
+          "live_shape": [
+            335,
+            176,
+            3
+          ],
+          "pixels_equal": false,
+          "different_pixel_fraction": 0.00044097693351424696
+        },
+        {
+          "fdi": 26,
+          "saved_shape": [
+            325,
+            218,
+            3
+          ],
+          "live_shape": [
+            325,
+            218,
+            3
+          ],
+          "pixels_equal": false,
+          "different_pixel_fraction": 0.0008750882145377558
+        }
+      ],
+      "predictions": [
+        {
+          "fdi": 45,
+          "confidence": 0.285178005695343,
+          "surface": "distal",
+          "centroid": [
+            1166.6858681846875,
+            930.6644982325394
+          ]
+        },
+        {
+          "fdi": 26,
+          "confidence": 0.5660465359687805,
+          "surface": "distal",
+          "centroid": [
+            2067.488486608958,
+            732.927792205948
+          ]
+        }
+      ],
+      "lesion_metrics": {
+        "0.3": {
+          "tp": 1,
+          "fp": 1,
+          "fn": 1,
+          "matched_correct_surface": 1,
+          "all_gt_correct_surface_fraction": 0.5
+        },
+        "0.5": {
+          "tp": 1,
+          "fp": 1,
+          "fn": 1,
+          "matched_correct_surface": 1,
+          "all_gt_correct_surface_fraction": 0.5
+        }
+      }
+    }
+  ],
+  "predictor_args": {
+    "pano": {
+      "imgsz": 640,
+      "conf": 0.25,
+      "iou": 0.7,
+      "rect": true,
+      "retina_masks": false,
+      "device": "cpu"
+    },
+    "caries": {
+      "imgsz": 640,
+      "conf": 0.25,
+      "iou": 0.5,
+      "rect": true,
+      "retina_masks": false,
+      "device": "cpu"
+    }
+  },
+  "elapsed_seconds": 51.25929716499991
+}

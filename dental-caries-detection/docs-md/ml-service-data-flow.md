@@ -1,6 +1,13 @@
 # ML Service Data Flow
 
-เอกสารนี้อธิบาย data flow ของระบบตรวจ caries และ surface classification ตาม implementation ปัจจุบัน เพื่อให้ทีม frontend/backend ใช้เป็น contract เดียวกัน
+> **STATUS (2026-10-28): SUPERSEDED — historical reference only.**
+> เอกสารนี้อธิบาย flow ก่อน pipeline v2 (Stage 1 caries YOLO บนภาพพาโนรามา +
+> Stage 3b CNN / RF) ซึ่ง **ไม่ตรงกับ implementation ที่ให้บริการแล้ว**.
+> Flow ปัจจุบันอยู่ที่ `docs-md/pipeline-v2-caries-crop.md`:
+> Pano-Seg → dedupe → crop PAD 20 → Crop-Seg → 1-class caries YOLO บน tooth crop
+> → geometry heuristic → crop→pano. RF/CNN ถูกถอดออกจาก serving แล้ว.
+
+รายละเอียดต่อไปนี้เป็น snapshot ของ data flow ก่อน pipeline v2 และไม่ใช่ contract ปัจจุบัน สำหรับ flow ที่ใช้งานอยู่ให้ยึด `api-contract-v1.md` และ `pipeline-v2-caries-crop.md`.
 
 ## 1. ภาพรวม Architecture
 

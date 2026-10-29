@@ -1,0 +1,46 @@
+{
+  "dataset_cases": 500,
+  "tuning": {
+    "CARIES_CONF": 0.03,
+    "CARIES_IOU": 0.7,
+    "POINT_CLOUD_DENSITY": 2,
+    "MIN_OWNERSHIP_SCORE": 0.25
+  },
+  "definition": "A pair is (FDI tooth, surface). TP is an exact pair match; FP is predicted but absent from CSV; FN is in CSV but absent from prediction. Accuracy is TP/(TP+FP+FN), suitable for detection output; this is not the RF closed-set accuracy.",
+  "overall": {
+    "TP": 426,
+    "FP": 1682,
+    "FN": 1860,
+    "Precision": 0.20208728652751423,
+    "Recall": 0.18635170603674542,
+    "F1": 0.19390077378243062,
+    "Accuracy": 0.10735887096774194
+  },
+  "per_class": {
+    "occlusal": {
+      "TP": 142,
+      "FP": 772,
+      "FN": 283,
+      "Precision": 0.15536105032822758,
+      "Recall": 0.3341176470588235,
+      "F1": 0.21209858103061988
+    },
+    "mesial": {
+      "TP": 43,
+      "FP": 188,
+      "FN": 769,
+      "Precision": 0.18614718614718614,
+      "Recall": 0.05295566502463054,
+      "F1": 0.08245445829338446
+    },
+    "distal": {
+      "TP": 241,
+      "FP": 722,
+      "FN": 808,
+      "Precision": 0.2502596053997923,
+      "Recall": 0.22974261201143947,
+      "F1": 0.23956262425447317
+    }
+  },
+  "elapsed_seconds": 293.40892219543457
+}

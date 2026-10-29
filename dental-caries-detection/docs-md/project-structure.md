@@ -40,7 +40,7 @@ The clinic continues to use its existing paper-based records.
 | In scope | Out of scope |
 |---|---|
 | Single-image OPG upload and validation | Multi-image or batch studies |
-| AI inference pipeline (Detectron2 + PCA + surface classification) | Model training and dataset curation (separate offline repository) |
+| AI inference pipeline (Pano-Seg YOLO + Crop-Seg Detectron2 + PCA + deterministic surface heuristic) | Model training and dataset curation (separate offline repository) |
 | Interactive on-screen result viewer (bounding boxes, masks, per-tooth detail) | PDF generation, report export, or any printed/exported artifact |
 | Processing-status tracking in a local PostgreSQL database | Patient database, appointment or billing systems |
 | Strict single-concurrency with preemption of the running job | Job queue, multi-user concurrency, horizontal scaling |
@@ -55,8 +55,8 @@ The clinic continues to use its existing paper-based records.
 | Frontend | React 18 + TypeScript, built with Vite | Single-page application. Served as static files by Vite's preview server inside the container. No Nginx. |
 | Rendering | HTML5 Canvas API | Interactive overlay of bounding boxes, segmentation masks, PCA axes, FDI labels. |
 | Backend API | Node.js (TypeScript) with Fastify | Orchestrator and single entry point for the frontend. Handles `POST /process` and `GET /process`, owns the database schema, triggers the ML service. |
-| ML Inference Service | Python 3 + FastAPI (Uvicorn) | Runs the Detectron2 + PCA + surface-classification pipeline. Invoked by the Node.js backend; writes status to PostgreSQL directly. |
-| ML Runtime | PyTorch, Detectron2, scikit-learn, OpenCV, Pillow | Packaged in the ML service image with pinned versions and model weights. |
+| ML Inference Service | Python 3 + FastAPI (Uvicorn) | Runs the pano-YOLO → tooth crop → Crop-Seg → 1-class caries → geometry surface pipeline. Invoked by the Node.js backend; writes status to PostgreSQL directly. |
+| ML Runtime | PyTorch, Ultralytics YOLO, Detectron2, OpenCV, Pillow | Packaged in the ML service image with pinned versions and model weights. |
 | Database | PostgreSQL 16 | Stores processing status only. No patient data. |
 | Database Management | pgAdmin 4 | Web console for developers to inspect and query the database during development and support. Not used by the application at runtime. |
 | Orchestration | Docker Compose | One-command local deployment; no cloud, no reverse proxy. |
@@ -93,7 +93,7 @@ flowchart LR
     User(["Clinician"])
     FE["React Frontend<br/>(TypeScript + Vite)"]
     BE["Node.js Backend<br/>(Fastify, TypeScript)"]
-    ML["FastAPI ML Service<br/>(Detectron2 + PCA + Surface Classification)"]
+    ML["FastAPI ML Service<br/>(Pano YOLO + Crop-Seg + Surface Heuristic)"]
     DB[("PostgreSQL")]
     PGA["pgAdmin<br/>(developer console)"]
 
@@ -257,32 +257,33 @@ Text description of the flow:
 
 ## 5. AI Inference Pipeline
 
-The FastAPI ML service executes a deterministic three-stage pipeline. Each
-stage consumes the previous stage's output; the orchestrator sequences the
-stages, handles errors, and assembles the final JSON.
+The FastAPI ML service executes a deterministic pipeline. Each stage consumes
+the previous stage's output; the orchestrator sequences the stages, handles
+errors, and assembles the final JSON.
 
 | Stage | Module | Input | Output |
 |---|---|---|---|
-| 1. Detection and Segmentation | `pipeline/detection.py` (Detectron2) | Decoded OPG image | Per-tooth instances: FDI class, bounding box, binary mask, confidence |
-| 2. Axis Alignment | `pipeline/pca_alignment.py` | Per-tooth masks | Principal axes and a canonical rotation for each tooth |
-| 3. Surface Classification | `pipeline/surface_classification.py` | Aligned tooth crops and masks | Per-surface caries label and probability (mesial, distal, occlusal, buccal, lingual) |
+| 1. Tooth detection and crop refinement | `pipeline/detection.py` | Panoramic image | Per-tooth FDI, bbox, refined mask; 1-class caries lesions in pano coordinates |
+| 2. Axis Alignment | `pipeline/pca_alignment.py` | Per-tooth refined masks | Principal axes and a canonical rotation for each tooth |
+| 3. Surface Assignment | `pipeline/surface_heuristic.py` | Lesion centroids + refined tooth mask | Mesial / occlusal / distal label per lesion (deterministic, no probability) |
 
-1. **Detection and Segmentation (Detectron2 / Mask R-CNN).** Produces instance
-   masks and FDI tooth numbering, establishing the region of interest for
-   every subsequent step.
+1. **Tooth detection and crop refinement.** Pano-Seg YOLO produces FDI,
+   bbox and mask per tooth; duplicate FDI detections are removed; each tooth is
+   cropped with PAD 20; Crop-Seg (Detectron2 Mask R-CNN) refines the mask; other
+   detected teeth are suppressed inside the crop; the 1-class caries YOLO-seg
+   runs on the crop and its output is transformed back to pano coordinates.
 2. **PCA Axis Alignment.** Principal component analysis derives each tooth's
-   dominant anatomical axis; the tooth crop is rotated into a canonical
-   orientation so surface regions are spatially consistent regardless of the
-   tooth's position in the arch.
-3. **Surface Classification.** A classifier evaluates each anatomical surface
-   of the aligned tooth and assigns a caries status with an associated
-   probability.
+   dominant anatomical axis and the rotation reported in `teeth[].axes`.
+3. **Surface Assignment.** The lesion centroid is rotated into the same
+   PCA-aligned tooth frame and classified by its relative x position:
+   `x_rel < 0.30` → left zone, `0.30–0.70` → occlusal, `> 0.70` → right zone,
+   with Q2/Q3 mirrored relative to Q1/Q4.
 
-The orchestrator (`pipeline/orchestrator.py`) merges the three stage outputs
-into `result.json`, attaches pipeline metadata (model versions, per-stage
-timings), and records completion in PostgreSQL. Masks are serialized as
-polygons or run-length encoding to keep the payload compact for Canvas
-rendering.
+The orchestrator (`pipeline/orchestrator.py`) merges the stage outputs into
+`result.json`, attaches model identifiers and counts, and records completion in
+PostgreSQL. Masks are serialized as polygons to keep the payload compact for
+Canvas rendering. The target flow and its validation are documented in
+`docs-md/pipeline-v2-caries-crop.md`.
 
 ---
 
@@ -299,9 +300,9 @@ rendering.
    the previous input), sets `status = 'processing'` in PostgreSQL, and calls
    the ML service `POST /infer`.
 4. The backend immediately returns `202 Accepted { "status": "processing" }`.
-5. The ML service reads `input.jpg`, runs the three-stage pipeline
-   (Detectron2 detection and segmentation, PCA axis alignment, surface
-   classification). A run takes 30 seconds or more.
+5. The ML service reads `input.jpg`, runs the pipeline (Pano-Seg → crop →
+   Crop-Seg → caries on crops → geometry surface heuristic). A run takes
+   30 seconds or more.
 6. On success the ML service writes `result.json` to the shared volume and
    sets `status = 'done'` with `result_path` in PostgreSQL. On failure it sets
    `status = 'fail'` with a `fail_message`.
@@ -551,7 +552,7 @@ dental-caries-detection/
 │           ├── imageStore.ts     # Save upload to shared volume, base64-encode for response
 │           └── validation.ts     # Authoritative image checks (type, size, dimensions)
 │
-├── ml-service/                   # FastAPI ML inference service (Surface Classification)
+├── ml-service/                   # FastAPI ML inference service (caries pipeline)
 │   ├── Dockerfile                # PyTorch / Detectron2 base, non-root runtime user
 │   ├── requirements.txt          # fastapi, uvicorn, torch, detectron2, numpy, opencv-python, scikit-learn, pillow, sqlalchemy, psycopg2-binary
 │   ├── app/
@@ -560,10 +561,15 @@ dental-caries-detection/
 │   │   ├── db.py                 # SQLAlchemy engine + Job model (status updates only)
 │   │   ├── runner.py             # Child-process management, cancellation
 │   │   └── pipeline/
-│   │       ├── orchestrator.py   # Sequences the three stages, assembles result.json
-│   │       ├── detection.py      # Stage 1 - Detectron2 inference wrapper
+│   │       ├── orchestrator.py   # Sequences the stages, assembles result.json
+│   │       ├── detection.py      # Stage 1 - pano YOLO, dedupe, crop, Crop-Seg, caries on crops
+│   │       ├── coordinate_transform.py  # pano <-> crop point/bbox transforms
+│   │       ├── crop_utils.py     # Neighbour suppression, polygon clipping
 │   │       ├── pca_alignment.py  # Stage 2 - principal-axis normalization
-│   │       ├── surface_classification.py  # Stage 3 - per-surface classifier
+│   │       ├── surface_heuristic.py  # Stage 3 - deterministic mesial/occlusal/distal
+│   │       ├── surface_classification.py  # REFERENCE ONLY - retired RF classifier
+│   │       ├── surface_cnn.py    # REFERENCE ONLY - future CNN option
+│   │       ├── xml_annotations.py  # AIM XML parser (training labels only)
 │   │       ├── numbering.py      # FDI tooth-numbering assignment
 │   │       └── postprocess.py    # Mask simplification, polygon / RLE encoding
 │   ├── models/

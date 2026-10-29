@@ -22,6 +22,16 @@ __pycache__/
 # ml-service/weights/ which has its own .gitignore)
 ml-service/*.zip
 
+# Generated training data and runs (large, reproducible from the 500-case set)
+ml-service/datasets/
+ml-service/runs/
+
 # OS
 .DS_Store
 Thumbs.db
+
+# Local experimental model archive, outside the production mount and image.
+ml-service/archive/
+
+# Reproducible per-case validation predictions; may include image coordinates.
+outputs/notebook-final-review-20261029/fresh_full_predictions.json

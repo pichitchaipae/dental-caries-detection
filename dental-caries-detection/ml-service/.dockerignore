@@ -1,0 +1,13 @@
+# The Dockerfile only needs runtime dependencies and application source.
+**
+!Dockerfile
+!requirements.txt
+!app/
+!app/**
+!models/
+!models/**
+
+# Keep generated caches out of the build context.
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/

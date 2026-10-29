@@ -1,14 +1,24 @@
 """
-Stage 3 — RF surface classification.
+Stage 3 (legacy reference) — RF surface classification.
 
-Uses the 14-feature vector from FeatureExtractor (ported from Run 3)
-and the pre-trained RandomForestClassifier (legacy artifact filename
-``rf_classify_ml.pkl``).
+STATUS: NOT USED BY SERVING.  The production surface method is the
+deterministic geometry heuristic in ``app/pipeline/surface_heuristic.py``.
+This module is kept because it documents the rejected RF 13-feature model and
+is required by the historical comparison scripts under ``tests/``.  The RF
+artifact has been quarantined in
+``_non-using/deprecated-serving-models/``; the orchestrator no longer imports
+this module.
+
+Uses the 13-feature vector from the verified production reference pipeline.
 
 Probability output:
   - Uses rf.classes_ index directly — does NOT assume class order.
   - Normalizes surface names to lowercase for the API contract.
   - Falls back to X-Thirds geometric classifier when RF returns no features.
+
+[IMPORTANT] The cleaning and PCA steps intentionally mirror the reference
+training pipeline: connected components, one caries region per tooth, and
+float64 feature calculations.
 """
 
 from __future__ import annotations
@@ -27,7 +37,7 @@ log = logging.getLogger(__name__)
 
 FEATURE_COLS = [
     "is_upper", "x_mean", "y_mean", "x_std", "y_std",
-    "x_min", "x_max", "y_min", "y_max", "x_range",
+    "x_min", "x_max", "y_min", "x_range",
     "y_range", "x_centroid_dist", "aspect_ratio", "coverage",
 ]
 VALID_SURFACE_CLASSES = ("Distal", "Mesial", "Occlusal")
@@ -95,10 +105,15 @@ def _remove_small_clusters(caries_pts: np.ndarray) -> np.ndarray:
 
 
 def _perform_pca(tooth_pts: np.ndarray, fdi: int) -> tuple[np.ndarray, float]:
-    """Return (center, rotation_angle). Mirror of pca_alignment.perform_pca()."""
+    """
+    Return (center, rotation_angle). Mirror of pca_alignment.perform_pca().
+
+    Uses float64 for feature calculations, matching the reference pipeline.
+    """
     import cv2
-    center = np.mean(tooth_pts, axis=0)
-    centered = tooth_pts - center
+    pts = np.asarray(tooth_pts, dtype=np.float64).reshape(-1, 2)
+    center = np.mean(pts, axis=0)
+    centered = pts - center
     _, eigvecs = cv2.PCACompute(centered.astype(np.float32), mean=None)
     primary = eigvecs[0].astype(np.float64)
     secondary = eigvecs[1].astype(np.float64)
@@ -141,21 +156,28 @@ def _perform_pca(tooth_pts: np.ndarray, fdi: int) -> tuple[np.ndarray, float]:
 
 
 def extract_features(
-    fdi: int,
-    tooth_pts: list[list[float]],
+    fdi: int | str,
+    tooth_pts: list[list[float]] | np.ndarray,
     caries_pts: np.ndarray,
+    skip_clean: bool = False,
 ) -> dict | None:
     """
-    Compute the 14-feature vector for the RF classifier.
+    Compute the 13-feature vector for the RF classifier.
 
     Returns None if caries region is empty after noise removal.
     Mirrors FeatureExtractor.extract_features() from reference pipeline.
+
+    ``skip_clean`` is retained for compatibility with callers that provide
+    already-cleaned points.
     """
-    caries_clean = _remove_small_clusters(np.array(caries_pts, dtype=np.float64))
+    if skip_clean:
+        caries_clean = np.asarray(caries_pts, dtype=np.float64)
+    else:
+        caries_clean = _remove_small_clusters(np.array(caries_pts, dtype=np.float64))
     if len(caries_clean) == 0:
         return None
 
-    tooth_np = np.array(tooth_pts, dtype=np.float64).reshape(-1, 2)
+    tooth_np = np.asarray(tooth_pts, dtype=np.float64).reshape(-1, 2)
     center, angle = _perform_pca(tooth_np, fdi)
     tooth_rot = _rotate(tooth_np, center, angle)
     caries_rot = _rotate(caries_clean, center, angle)
@@ -167,19 +189,24 @@ def extract_features(
     x_rel = np.clip((caries_rot[:, 0] - bbox_x) / w, 0.0, 1.0)
     y_rel = np.clip((caries_rot[:, 1] - bbox_y) / h, 0.0, 1.0)
 
+    x_mean = float(np.mean(x_rel))
+    y_mean = float(np.mean(y_rel))
+    x_min = float(np.min(x_rel))
+    x_max = float(np.max(x_rel))
+    y_min = float(np.min(y_rel))
+
     return {
         "is_upper": 1 if _is_upper(fdi) else 0,
-        "x_mean": float(np.mean(x_rel)),
-        "y_mean": float(np.mean(y_rel)),
+        "x_mean": x_mean,
+        "y_mean": y_mean,
         "x_std": float(np.std(x_rel)),
         "y_std": float(np.std(y_rel)),
-        "x_min": float(np.min(x_rel)),
-        "x_max": float(np.max(x_rel)),
-        "y_min": float(np.min(y_rel)),
-        "y_max": float(np.max(y_rel)),
-        "x_range": float(np.max(x_rel) - np.min(x_rel)),
-        "y_range": float(np.max(y_rel) - np.min(y_rel)),
-        "x_centroid_dist": float(abs(np.mean(x_rel) - 0.5)),
+        "x_min": x_min,
+        "x_max": x_max,
+        "y_min": y_min,
+        "x_range": x_max - x_min,
+        "y_range": float(np.max(y_rel)) - y_min,
+        "x_centroid_dist": abs(x_mean - 0.5),
         "aspect_ratio": float(w / h),
         "coverage": float(len(caries_clean) / (len(tooth_pts) + 1e-6)),
     }
@@ -201,7 +228,7 @@ def _classify_xthird(fdi: int, tooth_pts: list, caries_pts: np.ndarray) -> dict:
             "fallback_reason": "Empty caries region after noise removal",
         }
 
-    tooth_np = np.array(tooth_pts, dtype=np.float64).reshape(-1, 2)
+    tooth_np = np.asarray(tooth_pts, dtype=np.float64).reshape(-1, 2)
     center, angle = _perform_pca(tooth_np, fdi)
     tooth_rot = _rotate(tooth_np, center, angle)
     caries_rot = _rotate(caries_clean, center, angle)
@@ -231,6 +258,55 @@ def _classify_xthird(fdi: int, tooth_pts: list, caries_pts: np.ndarray) -> dict:
 # Public entry point for Stage 3
 # ---------------------------------------------------------------------------
 
+def _classify_single_lesion(
+    fdi: int,
+    tooth_polygon: list[list[float]],
+    lesion_pts: np.ndarray,
+    rf: Any,
+    skip_clean: bool = False,
+) -> dict | None:
+    """
+    Classify a single lesion cluster for one tooth.
+
+    Returns a surface finding dict, or None if features cannot be computed.
+    """
+    features = extract_features(fdi, tooth_polygon, lesion_pts, skip_clean=skip_clean)
+
+    if features is None:
+        log.debug("FDI %d: feature extraction returned None — X-Thirds fallback", fdi)
+        return _classify_xthird(fdi, tooth_polygon, lesion_pts)
+
+    df = pd.DataFrame([features], columns=FEATURE_COLS)
+
+    # Do not expose unsupported artifact classes as valid API findings.
+    # finding. If valid classes exist, choose only among those classes.
+    probabilities = rf.predict_proba(df)[0]
+    classes = list(rf.classes_)
+    valid_indices = [
+        i for i, label in enumerate(classes) if label in VALID_SURFACE_CLASSES
+    ]
+    if not valid_indices:
+        log.warning("FDI %d: RF has no supported surface classes — X-Thirds fallback", fdi)
+        return _classify_xthird(fdi, tooth_polygon, lesion_pts)
+    class_index = max(valid_indices, key=probabilities.__getitem__)
+    predicted_label = classes[class_index]
+    predicted_probability = float(probabilities[class_index])
+
+    surface_name = normalize_surface(predicted_label)
+
+    log.info(
+        "FDI %d: RF classified surface=%s (prob=%.4f)",
+        fdi, surface_name, predicted_probability,
+    )
+
+    return {
+        "name": surface_name,
+        "label": "caries",
+        "probability": round(predicted_probability, 4),
+        "method": "RF",
+    }
+
+
 def classify_tooth(
     det: ToothDetection,
     rf: Any,
@@ -245,42 +321,10 @@ def classify_tooth(
     if det.caries_points is None or len(det.caries_points) == 0:
         return []
 
-    features = extract_features(str(det.fdi), det.tooth_polygon, det.caries_points)
-
-    if features is None:
-        log.debug("FDI %d: feature extraction returned None — X-Thirds fallback", det.fdi)
-        fallback = _classify_xthird(det.fdi, det.tooth_polygon, det.caries_points)
-        return [fallback]
-
-    df = pd.DataFrame([features], columns=FEATURE_COLS)
-
-    # Match Run 3: an unexpected artifact class must not become a valid API
-    # finding. If valid classes exist, choose only among those classes.
-    probabilities = rf.predict_proba(df)[0]
-    classes = list(rf.classes_)
-    valid_indices = [
-        i for i, label in enumerate(classes) if label in VALID_SURFACE_CLASSES
-    ]
-    if not valid_indices:
-        log.warning("FDI %d: RF has no supported surface classes — X-Thirds fallback", det.fdi)
-        return [_classify_xthird(det.fdi, det.tooth_polygon, det.caries_points)]
-    class_index = max(valid_indices, key=probabilities.__getitem__)
-    predicted_label = classes[class_index]
-    predicted_probability = float(probabilities[class_index])
-
-    surface_name = normalize_surface(predicted_label)
-
-    log.info(
-        "FDI %d: RF classified surface=%s (prob=%.4f)",
-        det.fdi, surface_name, predicted_probability,
+    result = _classify_single_lesion(
+        det.fdi, det.tooth_polygon, det.caries_points, rf
     )
-
-    return [{
-        "name": surface_name,
-        "label": "caries",
-        "probability": round(predicted_probability, 4),
-        "method": "RF",
-    }]
+    return [result] if result is not None else []
 
 
 def run_stage3(
@@ -292,11 +336,21 @@ def run_stage3(
 
     Returns: fdi → list of surface findings
     """
-    findings_by_fdi: dict[int, list[dict]] = {}
+    findings_by_fdi: dict[int, dict[str, dict]] = {}
     for det in detections:
         findings = classify_tooth(det, rf)
-        findings_by_fdi[det.fdi] = findings
+        surfaces = findings_by_fdi.setdefault(det.fdi, {})
+        for finding in findings:
+            surface = finding["name"]
+            previous = surfaces.get(surface)
+            if previous is None or float(finding.get("probability", 0.0)) > float(
+                previous.get("probability", 0.0)
+            ):
+                surfaces[surface] = finding
 
-    n_classified = sum(1 for v in findings_by_fdi.values() if v)
+    normalized = {
+        fdi: list(surfaces.values()) for fdi, surfaces in findings_by_fdi.items()
+    }
+    n_classified = sum(1 for v in normalized.values() if v)
     log.info("Stage 3 RF: classified %d teeth with caries surfaces", n_classified)
-    return findings_by_fdi
+    return normalized

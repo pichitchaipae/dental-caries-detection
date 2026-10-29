@@ -24,8 +24,9 @@ from typing import Any
 from app.config import Settings
 from app.pipeline.detection import run_stage1
 from app.pipeline.pca_alignment import run_stage2
-from app.pipeline.surface_classification import run_stage3
+from app.pipeline.surface_heuristic import findings_for_lesions
 from app.pipeline.postprocess import build_tooth_result
+from models.versions import MODEL_VERSIONS
 
 log = logging.getLogger(__name__)
 
@@ -60,6 +61,10 @@ def run_pipeline(job_id: int, settings: Settings, models: dict) -> None:
             models=models,
             detection_threshold=settings.detection_threshold,
             caries_conf=settings.caries_conf,
+            caries_iou=settings.caries_iou,
+            crop_pad=settings.crop_pad,
+            dedupe_iou=settings.dedupe_iou,
+            suppress_neighbours=settings.suppress_neighbours,
         )
         log.info("Stage 1 complete: %d teeth", len(detections))
 
@@ -70,31 +75,24 @@ def run_pipeline(job_id: int, settings: Settings, models: dict) -> None:
         log.info("Stage 2 complete")
 
         # ----------------------------------------------------------------
-        # Stage 3 — RF surface classification
+        # Stage 3 — deterministic surface heuristic
+        #   A 1-class caries lesion is assigned to mesial/occlusal/distal
+        #   from its centroid relative to the refined tooth mask.
         # ----------------------------------------------------------------
-        findings_by_fdi = run_stage3(detections, models["rf"])
-        log.info("Stage 3 complete")
-
-        # ----------------------------------------------------------------
-        # Stage 3b — CNN surface model (env-gated)
-        #   off    : not run
-        #   shadow : CNN block only, RF findings stay primary
-        #   cnn    : CNN findings become primary, RF kept as fallback
-        # ----------------------------------------------------------------
-        shadow_cnn = None
-        surface_source = "rf"
-        try:
-            from app.pipeline.surface_cnn import primary_findings, run_shadow
-
-            shadow_cnn = run_shadow(image, detections)
-            findings_by_fdi, surface_source = primary_findings(
-                findings_by_fdi, shadow_cnn, detections
+        findings_by_fdi: dict[int, list[dict]] = {}
+        for det in detections:
+            findings_by_fdi[det.fdi] = findings_for_lesions(
+                fdi=det.fdi,
+                tooth_polygon=det.tooth_polygon,
+                lesions=det.caries_lesions,
+                left_bound=settings.surface_left_bound,
+                right_bound=settings.surface_right_bound,
             )
-            if shadow_cnn is not None:
-                log.info("Stage 3b CNN: %d teeth scored (surface_source=%s)",
-                         len(shadow_cnn.get("teeth", [])), surface_source)
-        except Exception as exc:  # the CNN must never break the job
-            log.warning("Stage 3b CNN failed: %r", exc)
+        log.info(
+            "Stage 3 complete: %d teeth with surface findings",
+            sum(1 for f in findings_by_fdi.values() if f),
+        )
+        surface_source = "geometry_heuristic"
 
         # ----------------------------------------------------------------
         # Build result JSON
@@ -122,27 +120,33 @@ def run_pipeline(job_id: int, settings: Settings, models: dict) -> None:
                 pano_confidence=det.pano_confidence,
                 axes=axes_dict,
                 surface_findings=surfaces,
+                caries_lesions=det.caries_lesions,
             )
             teeth_results.append(tooth_entry)
 
+        caries_model = MODEL_VERSIONS.get("caries_detector")
         result: dict[str, Any] = {
             "meta": {
                 "job_id": job_id,
                 "completed_at": datetime.now(timezone.utc).isoformat(),
                 "image_size": {"width": img_w, "height": img_h},
                 "tooth_count": len(teeth_results),
+                # Teeth with at least one caries surface finding.
                 "caries_count": sum(1 for t in teeth_results if t["surfaces"]),
+                "caries_lesion_count": sum(len(t["caries"]) for t in teeth_results),
+                "models": {
+                    "detector": MODEL_VERSIONS["pano_detector"]["filename"],
+                    "classifier": (
+                        caries_model["filename"] if caries_model else "not_configured"
+                    ),
+                },
             },
             "teeth": teeth_results,
         }
 
-        # Stage 3b — which model produced teeth[].surfaces[]: "cnn" when the CNN
-        # was primary, "rf" when the RF is the source (off/shadow, or fallback).
-        # The CNN block stays under its own key for evidence; the zod schemas in
-        # backend/frontend strip unknown top-level keys, so this is additive.
+        # Provenance for teeth[].surfaces[]. `geometry_heuristic` is the only
+        # serving path; the CNN/RF paths were removed from production.
         result["surface_source"] = surface_source
-        if shadow_cnn is not None:
-            result["shadow_cnn"] = shadow_cnn
 
         # ----------------------------------------------------------------
         # Atomic publish

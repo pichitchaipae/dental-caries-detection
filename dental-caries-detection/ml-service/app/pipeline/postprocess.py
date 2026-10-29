@@ -71,6 +71,31 @@ def mask_bits_to_polygon(
     return [[float(pt[0][0]), float(pt[0][1])] for pt in approx]
 
 
+def encode_caries_lesions(lesions: list) -> list[dict[str, Any]]:
+    """Encode Stage-1 caries lesion objects for result.json.
+
+    ``lesions`` are ``detection.CariesLesion`` instances.  Bboxes are ``[x, y,
+    w, h]`` and masks are polygons, both in pano coordinates — the same
+    convention as the tooth entry.
+    """
+    out: list[dict[str, Any]] = []
+    for lesion in lesions:
+        x1, y1, x2, y2 = (float(v) for v in lesion.bbox_xyxy)
+        out.append({
+            "bbox": [
+                round(x1, 2), round(y1, 2),
+                round(x2 - x1, 2), round(y2 - y1, 2),
+            ],
+            "mask": encode_mask_polygon(lesion.polygon),
+            "confidence": round(float(lesion.confidence), 4),
+            "centroid": [
+                round(float(lesion.centroid[0]), 2),
+                round(float(lesion.centroid[1]), 2),
+            ],
+        })
+    return out
+
+
 def build_tooth_result(
     id: int,
     fdi: int,
@@ -79,11 +104,15 @@ def build_tooth_result(
     pano_confidence: float,
     axes: dict | None,
     surface_findings: list[dict],
+    caries_lesions: list | None = None,
 ) -> dict[str, Any]:
     """
     Build a single tooth entry for the teeth array in result.json.
 
-    surface_findings: list of {"name": "occlusal", "label": "caries", "probability": 0.88}
+    surface_findings: list of {"name": "occlusal", "label": "caries",
+                               "probability": <caries detector confidence>,
+                               "method": "Geometry_Heuristic"}
+    caries_lesions:   Stage-1 CariesLesion objects (pano coordinates)
     """
     x, y, w, h = bbox_xywh
     
@@ -91,7 +120,8 @@ def build_tooth_result(
     safe_axes = axes if axes is not None else {
         "major": [0.0, 0.0],
         "minor": [0.0, 0.0],
-        "rotation_deg": 0.0
+        "rotation_deg": 0.0,
+        "clamped": False,
     }
 
     return {
@@ -102,4 +132,5 @@ def build_tooth_result(
         "mask": encode_mask_polygon(mask_polygon),
         "axes": safe_axes,
         "surfaces": surface_findings,
+        "caries": encode_caries_lesions(caries_lesions or []),
     }

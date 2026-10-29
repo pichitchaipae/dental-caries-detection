@@ -58,8 +58,12 @@ def health():
     )
     return {
         "ready": artifacts.is_ready(),
+        # `ready` covers the tooth pipeline (pano + Crop-Seg). Caries is
+        # optional until the crop-trained model is published; this flag makes
+        # the degraded mode explicit instead of silently returning no caries.
+        "caries_enabled": artifacts.caries_detector == "verified",
         "artifacts": artifacts.as_dict(),
-        "active_job_id": runner.active_job_id
+        "active_job_id": runner.active_job_id,
     }
 
 @app.exception_handler(Exception)

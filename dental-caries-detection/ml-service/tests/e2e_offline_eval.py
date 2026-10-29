@@ -1,5 +1,12 @@
 """Step 4 — offline end-to-end evaluation of the surface-CNN shadow path.
 
+STATUS: REFERENCE ONLY.  The CNN surface path is not part of serving any more;
+production surfaces come from ``app/pipeline/surface_heuristic.py``.  This
+script is kept to reproduce the historical CNN shadow evaluation and is not
+collected by pytest.  It therefore runs Stage 1 with the caries model disabled
+(``caries=None``) and does not require a ``caries_detector`` entry in
+``models/versions.py``.
+
 Declared BEFORE the run (reviewer-approved; nothing here may be re-tuned):
 
   1. set          : every tooth of the OOF CSV (exc100) — 201 cases / 6,012 teeth
@@ -195,7 +202,6 @@ def run_e2e(args, rows: list[dict]) -> dict:
     os.environ["ENABLE_CROP_SEGMENTER"] = "false"      # serving intent
     os.environ.setdefault("ML_DEVICE", "cpu")
     os.environ.setdefault("DETECTION_THRESHOLD", "0.25")
-    os.environ.setdefault("CARIES_CONF", "0.02")
 
     from app.pipeline.detection import run_stage1
     from app.pipeline.surface_cnn import CnnBundle, build_items
@@ -205,17 +211,14 @@ def run_e2e(args, rows: list[dict]) -> dict:
     thr = fold_thresholds(Path(args.folds_dir))
     print(f"[e2e] thresholds per fold: {json.dumps(thr, default=float)}", flush=True)
 
-    # Stage 1 only needs the two pinned YOLOs.  The RF is deliberately NOT
-    # loaded: this evaluation scores the CNN path, and the RF artifact contract
-    # is independent of it (at this commit versions.py still declares the old
-    # 14-feature contract while the pinned pickle is the 13-feature model —
-    # loading it raises before the first image is touched).
+    # Reference run only: pano YOLO + the CNN checkpoints.  Crop-Seg and caries
+    # are disabled so this historical evaluation does not depend on artifacts
+    # that are optional or retired.
     w = Path(args.weights)
     models = {
         "pano": YOLO(str(w / MODEL_VERSIONS["pano_detector"]["filename"])),
-        "caries": YOLO(str(w / MODEL_VERSIONS["caries_detector"]["filename"])),
+        "caries": None,
         "crop": None,
-        "rf": None,
     }
     bundles = {
         f: CnnBundle([Path(args.folds_dir) / f"best_pca_s42_f{f}.pt"], device="cpu",
@@ -244,7 +247,7 @@ def run_e2e(args, rows: list[dict]) -> dict:
         try:
             detections, image = run_stage1(
                 image_path=str(img_path), models=models,
-                detection_threshold=0.25, caries_conf=0.02)
+                detection_threshold=0.25)
             items, notes = build_items(image, detections)
             preds = bundles[fold].predict(items) if items else []
             per: dict[int, list[list[float]]] = {}

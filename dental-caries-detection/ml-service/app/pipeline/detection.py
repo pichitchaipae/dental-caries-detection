@@ -1,22 +1,24 @@
 """
-Stage 1 — Tooth detection and segmentation.
+Stage 1 — Tooth detection, crop refinement, and caries detection on crops.
 
-Sub-stages:
-  1a. Panoramic YOLO (Tooth_seg_pano_20250319.pt)
-      → 32 FDI tooth classes, bbox + mask polygon per tooth
-  1b. Caries YOLO (caries_detect.pt)
-      → caries lesion bboxes mapped to owning tooth via mask overlap
-      → caries_points: Nx2 point cloud per tooth
-  1c. Detectron2 crop segmenter (Tooth_seg_crop_20250424.pth)  [optional]
-      → refined tooth mask per crop; falls back to pano mask if disabled
+Flow (matches the approved pipeline):
 
-Output per tooth: ToothDetection dataclass (see pipeline/orchestrator.py).
+    pano image
+      -> Pano-Seg YOLO (Tooth_seg_pano_20250319.pt)       # bbox + mask + FDI
+      -> dedupe by FDI + bbox IoU > 0.5
+      -> crop each tooth with PAD 20
+      -> Crop-Seg Detectron2 (Tooth_seg_crop_20250424.pth) # refined tooth mask
+      -> caries YOLO-seg (1 class, runs on the crop image)
+      -> transform caries bbox/mask/centroid crop -> pano
+      -> ToothDetection list
+
+There is deliberately no caries-to-tooth ownership heuristic: a lesion detected
+inside a tooth crop belongs to that tooth by construction.
 """
 
 from __future__ import annotations
 
 import logging
-import math
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -24,15 +26,25 @@ from typing import Any
 import cv2
 import numpy as np
 
+from app.pipeline.coordinate_transform import (
+    bbox_crop_to_pano,
+    bbox_iou,
+    crop_bbox_from_xywh,
+    crop_to_pano,
+    polygon_centroid,
+    xyxy_to_xywh,
+)
+from app.pipeline.crop_utils import suppress_other_teeth
 from app.pipeline.numbering import class_id_to_fdi
 
 log = logging.getLogger(__name__)
 
-# Caries detection tuning (mirrors caries_detection.py in reference pipeline)
-_CARIES_CONF_DEFAULT = 0.02
-_CARIES_IOU = 0.30
-_MIN_OWNERSHIP_SCORE = 0.25
-_POINT_CLOUD_DENSITY = 5  # pts per pixel along bbox edge
+# Crop padding in pano pixels — same value as the reference notebook and the
+# surface-CNN training rule.
+CROP_PAD = 20
+DEDUPE_IOU = 0.50
+CARIES_CONF_DEFAULT = 0.25
+CARIES_IOU_DEFAULT = 0.50
 
 
 # ---------------------------------------------------------------------------
@@ -40,12 +52,24 @@ _POINT_CLOUD_DENSITY = 5  # pts per pixel along bbox edge
 # ---------------------------------------------------------------------------
 
 @dataclass
+class CariesLesion:
+    """One predicted caries instance in panoramic coordinates."""
+    bbox_xyxy: tuple[float, float, float, float]
+    polygon: list[list[float]]          # pano coords
+    confidence: float
+    centroid: tuple[float, float]       # pano coords
+
+
+@dataclass
 class ToothDetection:
     fdi: int
-    bbox_xywh: tuple[int, int, int, int]   # [x, y, w, h] in original image coords
-    tooth_polygon: list[list[float]]        # mask polygon (original coords)
-    caries_points: np.ndarray | None        # Nx2 or None (no caries detected)
+    bbox_xywh: tuple[int, int, int, int]   # [x, y, w, h] in pano coords
+    tooth_polygon: list[list[float]]        # refined mask polygon (pano coords)
     pano_confidence: float
+    caries_points: np.ndarray | None = None  # Nx2 polygon points (pano coords)
+    caries_lesions: list[CariesLesion] = field(default_factory=list)
+    crop_bbox_xyxy: tuple[int, int, int, int] | None = None
+    mask_source: str = "pano"               # "pano" | "crop_seg"
 
 
 # ---------------------------------------------------------------------------
@@ -57,9 +81,7 @@ def run_pano_detection(
     pano_model: Any,
     detection_threshold: float = 0.25,
 ) -> list[ToothDetection]:
-    """
-    Run the panoramic segmentation YOLO model and return per-tooth instances.
-    """
+    """Run the panoramic segmentation YOLO model and return per-tooth instances."""
     results = pano_model.predict(
         image_path,
         conf=detection_threshold,
@@ -83,15 +105,16 @@ def run_pano_detection(
             log.warning("pano YOLO: skipping class_id=%d — %s", class_id, exc)
             continue
 
-        # bbox xyxy → xywh
         x1, y1, x2, y2 = [int(v) for v in box.xyxy[0].tolist()]
+        x1, y1 = max(0, x1), max(0, y1)
+        x2, y2 = min(img_w, x2), min(img_h, y2)
+        if x2 <= x1 or y2 <= y1:
+            continue
         bbox_xywh = (x1, y1, x2 - x1, y2 - y1)
 
-        # Mask polygon
-        if r.masks is not None and i < len(r.masks.xy):
+        if r.masks is not None and i < len(r.masks.xy) and len(r.masks.xy[i]) >= 3:
             polygon = [[float(p[0]), float(p[1])] for p in r.masks.xy[i]]
         else:
-            # Fallback: bbox corners as degenerate polygon
             polygon = [
                 [float(x1), float(y1)], [float(x2), float(y1)],
                 [float(x2), float(y2)], [float(x1), float(y2)],
@@ -101,7 +124,6 @@ def run_pano_detection(
             fdi=fdi,
             bbox_xywh=bbox_xywh,
             tooth_polygon=polygon,
-            caries_points=None,
             pano_confidence=conf,
         ))
 
@@ -109,194 +131,287 @@ def run_pano_detection(
     return detections
 
 
-# ---------------------------------------------------------------------------
-# Stage 1b — Caries YOLO (maps lesions → owning tooth)
-# ---------------------------------------------------------------------------
-
-def _bbox_to_point_cloud(bbox: list[float], density: int) -> np.ndarray:
-    """Sample a uniform grid of points inside a bbox."""
-    x1, y1, x2, y2 = bbox
-    xs = np.linspace(x1, x2, max(2, int((x2 - x1) / density)))
-    ys = np.linspace(y1, y2, max(2, int((y2 - y1) / density)))
-    gx, gy = np.meshgrid(xs, ys)
-    return np.column_stack([gx.ravel(), gy.ravel()])
-
-
-def _polygon_to_mask(
-    points: list[list[float]],
-    image_shape: tuple[int, int],
-) -> np.ndarray:
-    """Rasterize a polygon to a binary HxW uint8 mask."""
-    mask = np.zeros(image_shape, dtype=np.uint8)
-    if len(points) >= 3:
-        pts = np.array(points, dtype=np.int32).reshape(-1, 1, 2)
-        cv2.fillPoly(mask, [pts], 1)
-    return mask
-
-
-def _mask_overlap_score(
-    tooth_polygon: list[list[float]],
-    caries_bbox: list[float],
-    image_shape: tuple[int, int],
-) -> float:
-    """Fraction of caries bbox area covered by the tooth mask."""
-    cx1, cy1, cx2, cy2 = [int(v) for v in caries_bbox]
-    tooth_mask = _polygon_to_mask(tooth_polygon, image_shape)
-    roi = tooth_mask[max(0, cy1):cy2, max(0, cx1):cx2]
-    if roi.size == 0:
-        return 0.0
-    return float(roi.sum()) / roi.size
-
-
-def _centroid_inside(
-    tooth_polygon: list[list[float]],
-    cx: float,
-    cy: float,
-    image_shape: tuple[int, int],
-) -> bool:
-    """True if the point (cx, cy) falls inside the tooth mask polygon."""
-    if len(tooth_polygon) < 3:
-        return False
-    tooth_mask = _polygon_to_mask(tooth_polygon, image_shape)
-    iy, ix = int(cy), int(cx)
-    h, w = image_shape
-    if 0 <= iy < h and 0 <= ix < w:
-        return bool(tooth_mask[iy, ix])
-    return False
-
-
-def run_caries_detection(
-    image_path: str,
-    caries_model: Any,
+def dedupe_detections(
     detections: list[ToothDetection],
-    image_shape: tuple[int, int],
-    caries_conf: float = _CARIES_CONF_DEFAULT,
-    min_ownership_score: float = _MIN_OWNERSHIP_SCORE,
+    iou_thresh: float = DEDUPE_IOU,
 ) -> list[ToothDetection]:
+    """Drop duplicate detections of the same FDI with bbox IoU > ``iou_thresh``.
+
+    The reference notebook dedupes by IoU.  We additionally guarantee one
+    detection per FDI (the output contract is keyed by FDI): if two boxes of the
+    same FDI do not overlap enough to be called duplicates, the lower-confidence
+    one is dropped with a warning.
     """
-    Detect caries lesions and assign point clouds to owning teeth.
-    Mutates detections in-place (sets caries_points).
-    Returns the same list.
-    """
-    results = caries_model.predict(
-        image_path,
-        conf=caries_conf,
-        iou=_CARIES_IOU,
-        verbose=False,
-    )
-    if not results or not results[0].boxes:
-        log.info("caries YOLO: no lesions detected")
+    if len(detections) <= 1:
         return detections
 
-    r = results[0]
-    caries_map: dict[int, list[np.ndarray]] = {}  # index into detections → list of clouds
+    by_fdi: dict[int, list[int]] = {}
+    for idx, det in enumerate(detections):
+        by_fdi.setdefault(det.fdi, []).append(idx)
 
-    for box in r.boxes:
-        caries_bbox = box.xyxy[0].tolist()
-        cx1, cy1, cx2, cy2 = caries_bbox
-        ccx, ccy = (cx1 + cx2) / 2.0, (cy1 + cy2) / 2.0
-
-        best_idx = -1
-        best_score = -1.0
-
-        for i, det in enumerate(detections):
-            ci = _centroid_inside(det.tooth_polygon, ccx, ccy, image_shape)
-            ov = _mask_overlap_score(det.tooth_polygon, caries_bbox, image_shape)
-            score = (2.0 if ci else 0.0) + ov
-
-            if score > best_score:
-                best_score = score
-                best_idx = i
-
-        if best_idx < 0 or best_score < min_ownership_score:
-            log.debug(
-                "caries YOLO: lesion bbox=%s rejected (best_score=%.4f < %.4f)",
-                caries_bbox, best_score, min_ownership_score,
+    keep: set[int] = set()
+    for fdi, indices in by_fdi.items():
+        ranked = sorted(indices, key=lambda i: detections[i].pano_confidence, reverse=True)
+        kept_for_fdi: list[int] = []
+        for idx in ranked:
+            box = _bbox_xyxy(detections[idx].bbox_xywh)
+            duplicate = any(
+                bbox_iou(box, _bbox_xyxy(detections[k].bbox_xywh)) > iou_thresh
+                for k in kept_for_fdi
             )
-            continue
+            if duplicate:
+                log.info(
+                    "dedupe: FDI %d drop duplicate (conf %.3f, IoU > %.2f)",
+                    fdi, detections[idx].pano_confidence, iou_thresh,
+                )
+                continue
+            kept_for_fdi.append(idx)
 
-        pts = _bbox_to_point_cloud(caries_bbox, _POINT_CLOUD_DENSITY)
-        caries_map.setdefault(best_idx, []).append(pts)
+        if len(kept_for_fdi) > 1:
+            log.warning(
+                "dedupe: FDI %d still has %d non-overlapping detections — "
+                "keeping the highest-confidence one",
+                fdi, len(kept_for_fdi),
+            )
+            kept_for_fdi = kept_for_fdi[:1]
 
-    for idx, clouds in caries_map.items():
-        detections[idx].caries_points = np.vstack(clouds)
+        keep.update(kept_for_fdi)
 
-    n_with_caries = sum(1 for d in detections if d.caries_points is not None)
-    log.info("caries YOLO: %d/%d teeth have caries", n_with_caries, len(detections))
-    return detections
+    return [det for i, det in enumerate(detections) if i in keep]
+
+
+def _bbox_xyxy(bbox_xywh: tuple[int, int, int, int]) -> tuple[float, float, float, float]:
+    x, y, w, h = bbox_xywh
+    return float(x), float(y), float(x + w), float(y + h)
 
 
 # ---------------------------------------------------------------------------
-# Stage 1c — Detectron2 crop segmenter (optional)
+# Stage 1b — Crop-Seg (Detectron2) on each tooth crop
 # ---------------------------------------------------------------------------
+
+def assign_crop_bboxes(
+    detections: list[ToothDetection],
+    image_shape: tuple[int, int],
+    pad: int = CROP_PAD,
+) -> None:
+    """Populate ``crop_bbox_xyxy`` from each pano bbox (clamped, with pad)."""
+    for det in detections:
+        det.crop_bbox_xyxy = crop_bbox_from_xywh(det.bbox_xywh, image_shape, pad=pad)
+
 
 def refine_with_crop_segmenter(
     image: np.ndarray,
     detections: list[ToothDetection],
     crop_model_bundle: dict | None,
+    pad: int = CROP_PAD,
 ) -> list[ToothDetection]:
+    """Refine each tooth mask with the Detectron2 crop segmenter.
+
+    Falls back to the pano mask when the model is disabled, produces no
+    instance, or fails.  ``crop_bbox_xyxy`` is always populated so the caries
+    stage can run on the same crop.
     """
-    Refine tooth_polygon for each detection using the Detectron2 crop segmenter.
-    Falls back to the existing pano mask if the model is disabled or fails.
-    """
+    img_h, img_w = image.shape[:2]
+    assign_crop_bboxes(detections, (img_h, img_w), pad=pad)
+
     if crop_model_bundle is None:
         log.debug("crop_segmenter disabled — using pano masks")
         return detections
 
     try:
         import torch
-        from detectron2.engine import DefaultPredictor  # type: ignore[import]
         from app.pipeline.postprocess import mask_bits_to_polygon
     except ImportError:
-        log.warning("detectron2 not importable in child — skipping crop refinement")
+        log.warning("torch not importable in child — skipping crop refinement")
         return detections
 
     model = crop_model_bundle["model"]
-    cfg = crop_model_bundle["cfg"]
+    resize = crop_model_bundle.get("resize")
+    if resize is None:
+        log.warning(
+            "crop_seg bundle has no ResizeShortestEdge transform; Detectron2 "
+            "expects MIN_SIZE_TEST preprocessing and will likely return no instances"
+        )
 
-    img_h, img_w = image.shape[:2]
-
+    refined = 0
     for det in detections:
-        x, y, w, h = det.bbox_xywh
-        x1, y1 = max(0, x), max(0, y)
-        x2, y2 = min(img_w, x + w), min(img_h, y + h)
-        if x2 <= x1 or y2 <= y1:
+        crop_bbox = det.crop_bbox_xyxy
+        if crop_bbox is None:
             continue
-
+        x1, y1, x2, y2 = crop_bbox
         crop = image[y1:y2, x1:x2]
         if crop.size == 0:
             continue
 
         try:
+            # Match detectron2.engine.DefaultPredictor exactly: BGR -> RGB,
+            # then ResizeShortestEdge(MIN_SIZE_TEST, MAX_SIZE_TEST).  Detectron2
+            # does not resize internally; without this every crop scores ~0.
+            model_input = crop[:, :, ::-1]
+            if resize is not None:
+                model_input = resize.get_transform(model_input).apply_image(model_input)
+            model_input = np.ascontiguousarray(model_input)
+
             with torch.no_grad():
                 outputs = model([{
                     "image": torch.as_tensor(
-                        crop.transpose(2, 0, 1).astype("float32")
+                        np.ascontiguousarray(
+                            model_input.transpose(2, 0, 1), dtype=np.float32
+                        )
                     ),
                     "height": y2 - y1,
                     "width": x2 - x1,
                 }])
             instances = outputs[0]["instances"]
             if len(instances) == 0:
+                log.debug("crop_seg: no instance for FDI %d — keeping pano mask", det.fdi)
                 continue
 
-            # Take highest-scoring instance mask
             scores = instances.scores.cpu().numpy()
             best = int(np.argmax(scores))
             mask_crop = instances.pred_masks[best].cpu().numpy().astype(np.uint8)
 
-            polygon = mask_bits_to_polygon(mask_crop)
-            if polygon is None or len(polygon) < 3:
+            # pred_masks are in the resized model-input space.  Map back to the
+            # original crop before converting to pano coordinates.
+            if mask_crop.shape != crop.shape[:2]:
+                mask_crop = cv2.resize(
+                    mask_crop,
+                    (crop.shape[1], crop.shape[0]),
+                    interpolation=cv2.INTER_NEAREST,
+                )
+
+            polygon_crop = mask_bits_to_polygon(mask_crop)
+            if polygon_crop is None or len(polygon_crop) < 3:
                 continue
 
-            # Shift polygon coords back to original image space
-            det.tooth_polygon = [
-                [pt[0] + x1, pt[1] + y1] for pt in polygon
-            ]
+            polygon_pano = crop_to_pano(polygon_crop, crop_bbox)
+            det.tooth_polygon = polygon_pano.tolist()
+            det.mask_source = "crop_seg"
+            refined += 1
+
+            xs, ys = polygon_pano[:, 0], polygon_pano[:, 1]
+            det.bbox_xywh = xyxy_to_xywh((xs.min(), ys.min(), xs.max(), ys.max()))
         except Exception as exc:
             log.warning("crop_segmenter failed for FDI=%d: %s", det.fdi, exc)
-            # Keep pano mask — no re-raise
+            # Keep the pano mask — no re-raise.
 
+    if detections:
+        if refined == 0:
+            log.warning(
+                "crop_seg refined 0/%d tooth masks — check preprocessing and "
+                "SCORE_THRESH_TEST; every tooth is using its pano mask",
+                len(detections),
+            )
+        else:
+            log.info("crop_seg refined %d/%d tooth masks", refined, len(detections))
+
+    return detections
+
+
+# ---------------------------------------------------------------------------
+# Stage 1c — Caries YOLO-seg on each tooth crop
+# ---------------------------------------------------------------------------
+
+def _validate_caries_model(caries_model: Any) -> None:
+    names = getattr(caries_model, "names", None)
+    if not names:
+        return
+    labels = list(names.values()) if isinstance(names, dict) else list(names)
+    if len(labels) != 1:
+        raise ValueError(
+            "caries_detector must be a 1-class model ('caries'); "
+            f"got {len(labels)} classes: {labels}. The 3-class "
+            "Occlusal/Proximal/Lingual taxonomy was rejected."
+        )
+    if str(labels[0]).lower() != "caries":
+        raise ValueError(
+            "caries_detector must emit the class 'caries'; "
+            f"got {labels!r}. Re-train with data.yaml names: ['caries']."
+        )
+
+
+def _polygon_from_bbox(bbox_xyxy: tuple[float, float, float, float]) -> list[list[float]]:
+    x1, y1, x2, y2 = bbox_xyxy
+    return [[x1, y1], [x2, y1], [x2, y2], [x1, y2]]
+
+
+def run_caries_on_crops(
+    image: np.ndarray,
+    detections: list[ToothDetection],
+    caries_model: Any | None,
+    caries_conf: float = CARIES_CONF_DEFAULT,
+    caries_iou: float = CARIES_IOU_DEFAULT,
+    suppress_neighbours: bool = True,
+) -> list[ToothDetection]:
+    """Run the crop-trained caries model on every tooth crop.
+
+    Predictions are transformed back to pano coordinates and attached to the
+    tooth they were detected on.  No global caries pass, no ownership scoring.
+    """
+    if caries_model is None:
+        log.warning("caries_detector not configured — no caries findings will be produced")
+        return detections
+
+    _validate_caries_model(caries_model)
+
+    total = 0
+    for det in detections:
+        crop_bbox = det.crop_bbox_xyxy
+        if crop_bbox is None:
+            continue
+        x1, y1, x2, y2 = crop_bbox
+        crop = image[y1:y2, x1:x2]
+        if crop.size == 0:
+            continue
+
+        if suppress_neighbours:
+            other_polygons = [
+                other.tooth_polygon for other in detections if other is not det
+            ]
+            crop = suppress_other_teeth(
+                crop, crop_bbox, det.tooth_polygon, other_polygons,
+            )
+
+        results = caries_model.predict(
+            source=crop,
+            conf=caries_conf,
+            iou=caries_iou,
+            verbose=False,
+        )
+        if not results:
+            continue
+        r = results[0]
+
+        lesions: list[CariesLesion] = []
+        for i, box in enumerate(r.boxes):
+            conf = float(box.conf[0])
+            bbox_crop = tuple(float(v) for v in box.xyxy[0].tolist())
+
+            if r.masks is not None and i < len(r.masks.xy) and len(r.masks.xy[i]) >= 3:
+                polygon_crop = np.asarray(r.masks.xy[i], dtype=np.float64)
+            else:
+                polygon_crop = np.asarray(_polygon_from_bbox(bbox_crop), dtype=np.float64)
+
+            polygon_pano = crop_to_pano(polygon_crop, crop_bbox)
+            bbox_pano = bbox_crop_to_pano(bbox_crop, crop_bbox)
+            centroid = polygon_centroid(polygon_pano)
+
+            lesions.append(CariesLesion(
+                bbox_xyxy=bbox_pano,
+                polygon=polygon_pano.tolist(),
+                confidence=conf,
+                centroid=centroid,
+            ))
+
+        if lesions:
+            det.caries_lesions = lesions
+            det.caries_points = np.vstack([
+                np.asarray(les.polygon, dtype=np.float64) for les in lesions
+            ])
+            total += len(lesions)
+
+    n_teeth = sum(1 for d in detections if d.caries_lesions)
+    log.info("caries YOLO: %d lesion(s) on %d/%d teeth", total, n_teeth, len(detections))
     return detections
 
 
@@ -308,33 +423,40 @@ def run_stage1(
     image_path: str,
     models: dict,
     detection_threshold: float = 0.25,
-    caries_conf: float = _CARIES_CONF_DEFAULT,
+    caries_conf: float = CARIES_CONF_DEFAULT,
+    caries_iou: float = CARIES_IOU_DEFAULT,
+    crop_pad: int = CROP_PAD,
+    dedupe_iou: float = DEDUPE_IOU,
+    suppress_neighbours: bool = True,
 ) -> tuple[list[ToothDetection], np.ndarray]:
     """
     Run all Stage 1 sub-stages.
 
     Returns:
-        detections: List of ToothDetection (with caries_points if found)
-        image:      Loaded BGR image array (reused by Stage 1c and Canvas)
+        detections: List of ToothDetection (with caries_lesions if found)
+        image:      Loaded BGR image array (reused by the orchestrator)
     """
     image = cv2.imread(image_path)
     if image is None:
         raise ValueError(f"Cannot read image: {image_path}")
 
-    img_h, img_w = image.shape[:2]
-
-    # 1a — pano detection
+    # 1a — pano detection + dedupe
     detections = run_pano_detection(image_path, models["pano"], detection_threshold)
     if not detections:
         return detections, image
+    detections = dedupe_detections(detections, iou_thresh=dedupe_iou)
 
-    # 1b — caries detection
-    detections = run_caries_detection(
-        image_path, models["caries"], detections,
-        image_shape=(img_h, img_w), caries_conf=caries_conf,
+    # 1b — crop + Crop-Seg refinement (also sets crop_bbox_xyxy)
+    detections = refine_with_crop_segmenter(
+        image, detections, models.get("crop"), pad=crop_pad,
     )
 
-    # 1c — optional crop refinement
-    detections = refine_with_crop_segmenter(image, detections, models.get("crop"))
+    # 1c — caries on the tooth crop, then back to pano coordinates
+    detections = run_caries_on_crops(
+        image, detections, models.get("caries"),
+        caries_conf=caries_conf,
+        caries_iou=caries_iou,
+        suppress_neighbours=suppress_neighbours,
+    )
 
     return detections, image

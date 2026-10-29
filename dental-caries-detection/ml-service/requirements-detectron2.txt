@@ -1,0 +1,12 @@
+# Detectron2 for Crop-Seg (Tooth_seg_crop_20250424.pth).
+#
+# Detectron2 is not on PyPI with a wheel compatible with torch 2.4.1, so it is
+# kept out of requirements.txt.  The Dockerfile installs this exact CPU wheel;
+# use this file for a local CPU install:
+#
+#   pip install -r requirements-detectron2.txt
+#
+# GPU hosts should install the CUDA wheel matching their torch build instead:
+# https://detectron2.readthedocs.io/en/latest/tutorials/install.html
+
+detectron2 @ https://dl.fbaipublicfiles.com/detectron2/wheels/cpu/torch2.4/detectron2-0.6%2Bcpu-cp310-cp310-linux_x86_64.whl

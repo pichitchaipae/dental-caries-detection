@@ -1,10 +1,13 @@
 # API Contract v1 — Backend → Frontend
 
-> **สถานะ:** FROZEN (INT-1 / INT-2) · **ฉบับ:** v1 · **วันที่:** 2026-09-30
+> **สถานะ:** FROZEN · **ฉบับ:** v1.2 · **วันที่:** 2026-10-29
 > **เจ้าของ:** Backend (ไผ่) · **ผู้ใช้หลัก:** Frontend (ปอน) · **แหล่งข้อมูล ML:** เจา
 >
 > เอกสารนี้คือ spec ของ JSON ที่ Backend ส่งให้หน้าบ้าน **ทุก field** ใช้เอกสารนี้ + fixture
 > `backend/src/fixtures/result.sample.json` เป็นตัวตั้งในการทำ mock data และเขียนโค้ด plot ลงรูป
+>
+> v1.2 กำหนดให้ `surfaces[].probability` ของผลปัจจุบันส่ง caries detector confidence
+> ที่ผูกกับ surface นั้น โดยยังคงรูปแบบตัวเลข `0–1` เดิม
 
 ---
 
@@ -12,11 +15,16 @@
 
 - ยิงแค่ 2 endpoint: `POST /process` (อัปโหลด) กับ `GET /process` (poll ทุก ~2 วิ)
 - ผลลัพธ์อยู่ใน `data.teeth[]` — ฟัน 1 ซี่ = 1 object มี `bbox`, `mask` (polygon), `axes`, `surfaces`
+  และ `caries` (optional, v1.1)
 - **พิกัดทุกตัวเป็น pixel ของรูปต้นฉบับ** (origin มุมซ้ายบน, แกน y ชี้ลง) ไม่มี normalize
 - `surfaces` **มีเฉพาะด้านที่ผุ** (0..n รายการ, ชื่อได้แค่ `mesial` / `distal` / `occlusal`)
   ถ้าฟันไม่ผุ → `surfaces: []` และ `has_caries: false` — ไม่มี `sound`, ไม่มี `buccal`/`lingual` แล้ว
 - `confidence` ของฟัน = ความมั่นใจว่า **"ตรงนี้คือฟันซี่นี้"** ไม่ใช่ความมั่นใจว่าผุ
-- `surfaces[].probability` อาจเป็น `null` (กรณี ML ใช้ fallback) → UI ต้องแสดง "—" แทน %
+- pipeline ปัจจุบันส่ง `surfaces[].probability` เป็น caries detector confidence ช่วง `0–1`; UI แสดงเป็นเปอร์เซ็นต์
+- `probability` ยังเป็น `null` ได้สำหรับผลย้อนหลังหรือ fallback ที่ไม่มี detector score → UI แสดง "—"
+- v1.1: `surfaces[].method` เป็น `"Geometry_Heuristic"` ใน pipeline v2 (ยังรับ `"RF"` /
+  `"XThirds_Fallback"` / `"CNN"` ของผลเก่า) และ `teeth[].caries[]` เก็บ mask ของ lesion
+  ในพิกัด pano เดียวกับฟัน
 - Fixture ตัวเต็มอยู่ที่ `backend/src/fixtures/result.sample.json` → copy แบบ byte-identical ไปที่
   `frontend/src/fixtures/result.sample.json`
 - สิ่งที่ต้องแก้ใน `inference.ts` / mock ดู [§7](#7-สิ่งที่ปอนต้องแก้-diff-จาก-schema-เดิม)
@@ -174,14 +182,28 @@ data
 |---|---|---|---|
 | `name` | `string` enum | `"mesial"` \| `"distal"` \| `"occlusal"` | ด้านของฟันที่ผุ · **ไม่ซ้ำกันภายในฟันซี่เดียว** (ใช้เป็น React key ได้) |
 | `label` | `"caries"` | `"caries"` เท่านั้น | คงไว้เพื่อ forward-compat — v1 มีแต่ด้านที่ผุ |
-| `probability` | `number \| null` | `0–1` หรือ `null` | ความมั่นใจของ RF ว่า **"ผุที่ด้านนี้"** (เทียบกับอีก 2 ด้าน) · `null` เมื่อ `method = "XThirds_Fallback"` |
-| `method` | `string` enum | `"RF"` \| `"XThirds_Fallback"` | `RF` = Random Forest จำแนก · `XThirds_Fallback` = แบ่งฟันเป็น 3 ส่วนตามแนว x (ใช้เมื่อ RF ใช้ไม่ได้) ความเชื่อถือต่ำกว่า |
+| `probability` | `number \| null` | `0–1` หรือ `null` | pipeline ปัจจุบันใช้ caries YOLO confidence ของ lesion ที่ถูกจัดเข้าด้านนี้ (หลาย lesion ใช้ค่าสูงสุด); เป็น detector score ที่ยังไม่ calibrated ไม่ใช่ calibrated probability ของทั้ง surface; `null` ได้กับผลย้อนหลัง/fallback ที่ไม่มี score |
+| `method` | `string` enum | `"Geometry_Heuristic"` \| `"RF"` \| `"XThirds_Fallback"` \| `"CNN"` | `Geometry_Heuristic` = กติกาเรขาคณิตของ pipeline v2 (ค่าปัจจุบัน) · ค่าอื่นเป็นผลเก่า/ reference เท่านั้น |
 
 - ความยาว: ปัจจุบัน ML ให้ **0 หรือ 1** รายการต่อซี่ แต่ FE ต้องรองรับ `0..3`
 - ถ้าจะแสดง "ผุ x ด้าน" ให้ใช้ตัวหารคงที่ **3** (`"1 / 3 surfaces"`) ไม่ใช่ `surfaces.length`
-- **ไม่มีตำแหน่งพิกัดของรอยผุ** ใน v1 — FE ไฮไลต์ได้ระดับ "ฟันซี่นี้ผุด้าน X" (เช่น tint ทั้ง mask สีแดง
-  + label ด้าน) ถ้าต้องการวาดโซน mesial/distal/occlusal บนฟัน ให้คำนวณจาก `axes` + `mask` ฝั่ง FE
-  (แกน minor แบ่งซ้าย/ขวา = mesial/distal, ปลายแกน major ฝั่งด้านบดเคี้ยว = occlusal)
+- `surfaces[]` ยังไม่มีพิกัดของรอยผุ — ใช้ `teeth[].caries[]` (v1.1) ถ้าต้องการวาดตัว lesion
+- `Geometry_Heuristic` ใช้ตำแหน่ง centroid เลือกด้าน ส่วน `probability` ใช้ confidence จาก caries detector ของ lesion ที่ทำให้เกิด finding นั้น; ทั้งสองค่ามาจากคนละขั้นตอน
+
+### 3.7 `teeth[].caries[]` — lesion masks (v1.1, optional)
+
+มีเฉพาะเมื่อมีรอยผุที่ตรวจได้; ถ้าไม่มี field นี้หรือเป็น `[]` ถือว่าไม่มี lesion
+
+| Field | Type | ความหมาย |
+|---|---|---|
+| `bbox` | `[x, y, w, h]` | กรอบ lesion ในพิกัด pano |
+| `mask` | `{ encoding: "polygon", data: [[x,y], ...] }` | polygon ของ lesion ในพิกัด pano |
+| `confidence` | `number 0–1` | ความมั่นใจของ caries detector |
+| `centroid` | `[x, y]` | จุด centroid ของ lesion ในพิกัด pano |
+
+- พิกัดเป็น pixel ของรูปต้นฉบับเหมือน field อื่น ๆ
+- `caries[]` เป็นรายละเอียดของ lesion; `surfaces[]` เป็นสรุปด้านที่ผุ (dedupe ต่อด้าน)
+- จำนวน lesion ต่อซี่อาจมากกว่า 1 แม้ `surfaces[]` จะเหลือด้านละ 1 รายการ
 
 ---
 
@@ -267,7 +289,15 @@ data
         "axes": { "major": [-0.0871, 0.9962], "minor": [0.9962, 0.0871], "rotation_deg": 5, "clamped": false },
         "has_caries": true,
         "surfaces": [
-          { "name": "occlusal", "label": "caries", "probability": 0.815, "method": "RF" }
+          { "name": "occlusal", "label": "caries", "probability": 0.77, "method": "Geometry_Heuristic" }
+        ],
+        "caries": [
+          {
+            "bbox": [2134, 934, 42, 36],
+            "mask": { "encoding": "polygon", "data": ["..."] },
+            "confidence": 0.77,
+            "centroid": [2155, 952]
+          }
         ]
       },
       {
@@ -277,7 +307,15 @@ data
         "axes": { "major": [0.1219, 0.9925], "minor": [0.9925, -0.1219], "rotation_deg": -7, "clamped": false },
         "has_caries": true,
         "surfaces": [
-          { "name": "mesial", "label": "caries", "probability": null, "method": "XThirds_Fallback" }
+          { "name": "mesial", "label": "caries", "probability": 0.71, "method": "Geometry_Heuristic" }
+        ],
+        "caries": [
+          {
+            "bbox": [948, 910, 38, 44],
+            "mask": { "encoding": "polygon", "data": ["..."] },
+            "confidence": 0.71,
+            "centroid": [967, 932]
+          }
         ]
       }
     ]
@@ -305,7 +343,14 @@ const surfaceFindingSchema = z.object({
   name: z.enum(SURFACE_NAMES),
   label: z.literal('caries'),
   probability: z.number().min(0).max(1).nullable(),
-  method: z.enum(['RF', 'XThirds_Fallback']),
+  method: z.enum(['Geometry_Heuristic', 'RF', 'XThirds_Fallback', 'CNN']),
+});
+
+const cariesLesionSchema = z.object({
+  bbox: z.tuple([z.number(), z.number(), z.number(), z.number()]),
+  mask: z.object({ encoding: z.literal('polygon'), data: z.array(point).min(3) }),
+  confidence: z.number().min(0).max(1),
+  centroid: point,
 });
 
 const toothAxesSchema = z.object({
@@ -329,6 +374,7 @@ const toothSchema = z.object({
   axes: toothAxesSchema,
   has_caries: z.boolean(),
   surfaces: z.array(surfaceFindingSchema).max(3),
+  caries: z.array(cariesLesionSchema).optional(), // v1.1
 });
 
 const inferenceMetaSchema = z.object({
@@ -375,8 +421,8 @@ export function parseProcessResponse(json: unknown): ProcessResponse {
 | `surfaces[].name` | 5 ค่า (+ `buccal`, `lingual`) | 3 ค่า `mesial`/`distal`/`occlusal` | `inference.ts`, `resultFactory.ts` |
 | `surfaces[].label` | `caries` \| `sound` | `"caries"` เท่านั้น | `ToothDetailPanel.tsx` (ไฮไลต์ทุกแถว) |
 | `surfaces` ความหมาย | ครบทุกด้าน | **เฉพาะด้านที่ผุ** (0..3) | `analysisTypes.ts`, `ToothDetailPanel.tsx` (แสดงแถว 3 ด้านเอง หรือแสดงเฉพาะที่ผุ) |
-| `surfaces[].probability` | `number` | `number \| null` | `ToothDetailPanel.tsx:68` — `null` → แสดง `"—"` |
-| `surfaces[].method` | – | **ใหม่** `"RF"` \| `"XThirds_Fallback"` | แสดง badge "low confidence" ถ้าเป็น fallback (optional) |
+| `surfaces[].probability` | `number` | `number \| null` | `ToothDetailPanel.tsx` — number → แสดงเปอร์เซ็นต์; `null` → แสดง `"—"` |
+| `surfaces[].method` | – | **ใหม่** `"Geometry_Heuristic"` \| `"RF"` \| `"XThirds_Fallback"` \| `"CNN"` | แสดง badge "low confidence" ถ้าเป็น heuristic/fallback (optional) |
 | `teeth[].has_caries` | – (คำนวณใน FE) | **ใหม่** มาจาก backend | `analysisTypes.ts` ใช้ได้ตรง ๆ |
 | `axes.clamped` | – | **ใหม่** `boolean` | overlays: ถ้า `major` เป็น `[0,0]` ไม่ต้องวาด |
 | `meta.job_id` | – | **ใหม่** | – (ไม่ต้องใช้) |
@@ -392,8 +438,10 @@ export function parseProcessResponse(json: unknown): ProcessResponse {
 
 ## 8. ML raw → API v1 mapping (สำหรับ backend adapter)
 
-Raw ที่ ML เขียน: ดูตัวอย่าง `backend/src/fixtures/ml-result.raw.sample.json`
-(โค้ดต้นทาง: `ml-service/app/pipeline/orchestrator.py`, `postprocess.py`, `surface_classification.py`)
+ตัวอย่าง raw result: `backend/src/fixtures/ml-result.raw.sample.json` (เป็น fixture ยุค RF
+ยังใช้ตรวจ backward-compat; ผลจริงของ pipeline v2 ใช้ `method: "Geometry_Heuristic"` และมี
+`caries[]` — ดูตัวอย่างใน §3.7)
+(โค้ดต้นทาง: `ml-service/app/pipeline/orchestrator.py`, `detection.py`, `surface_heuristic.py`, `postprocess.py`)
 
 | API v1 | จาก ML raw | กฎการแปลง |
 |---|---|---|
@@ -412,9 +460,10 @@ Raw ที่ ML เขียน: ดูตัวอย่าง `backend/src/fi
 | `teeth[].has_caries` | – | `surfaces.length > 0` |
 | `surfaces[].name` | `surfaces[].name` | ตรง ๆ (lowercase แล้ว); dedupe ถ้าชื่อซ้ำ (เก็บตัวที่ probability สูงกว่า) |
 | `surfaces[].label` | `surfaces[].label` | `"caries"` |
-| `surfaces[].probability` | `surfaces[].probability` | `method === "RF"` → ค่าเดิม, ไม่งั้น → `null` |
-| `surfaces[].method` | `surfaces[].method` | ตรง ๆ |
+| `surfaces[].probability` | `surfaces[].probability` | ค่าเดิมถ้ามี; current ML ส่ง detector confidence ของ Geometry_Heuristic; fallback ที่ไม่มี score → `null` |
+| `surfaces[].method` | `surfaces[].method` | ตรง ๆ (`Geometry_Heuristic` / `RF` / `XThirds_Fallback` / `CNN`) |
 | – | `surfaces[].fallback_reason` | ทิ้ง (log ฝั่ง backend) |
+| `teeth[].caries[]` | `teeth[].caries[]` | v1.1: ตรง ๆ; ถ้าไม่มี → `[]` |
 
 ถ้า raw ไม่ผ่าน schema (key หาย / type ผิด) → `GET /process` ตอบ
 `{status:"fail", fail_message:"Invalid inference result."}` และ log รายละเอียดฝั่ง backend
@@ -423,11 +472,19 @@ Raw ที่ ML เขียน: ดูตัวอย่าง `backend/src/fi
 
 ## 9. Known issues / สิ่งที่ต้องให้เจา (ML) แก้
 
+> **v1.2 note:** ML-3, ML-4, ML-5 และ ML-9 เป็นประวัติของ pipeline เก่า; สถานะปัจจุบันอยู่ใน
+> `docs-md/pipeline-v2-caries-crop.md`. `probability` ปัจจุบันเก็บ caries detector confidence ของ lesion ที่ถูกจัดเข้ากับ surface
+>
+> **v1.1 note:** ML-3, ML-4, ML-5 และ ML-9 ถูกแทนที่ด้วย pipeline v2
+> (`docs-md/pipeline-v2-caries-crop.md`) — RF/point-cloud ถูกถอดออกจาก serving,
+> caries ทำงานบน tooth crop, และ surface มาจาก geometry heuristic ตารางด้านล่าง
+> เก็บไว้เป็นประวัติการตัดสินใจ
+
 | # | ปัญหา | ที่อยู่ | ผลกระทบ | ความเร่งด่วน |
 |---|---|---|---|---|
 | ML-1 | `build_tooth_result()` ต้องการ `id` แต่ caller ไม่ส่ง → `TypeError` | `orchestrator.py` / `postprocess.py` | **แก้แล้ว** — orchestrator ส่ง `id` จาก index ของ detection | ✅ |
 | ML-2 | ผล Stage 2/3 เก็บใน dict keyed ด้วย `fdi` + ไม่มี IoU dedupe ฟันซ้ำ | `pca_alignment.py:181`, `surface_classification.py:285`, `detection.py:76-106` | ฟันซ้ำ FDI ได้ axes/surfaces ทับกัน, "All detected teeth" มีซี่ซ้ำ | 🟠 สูง (key ด้วย index + dedupe IoU>0.5 แบบ `reserch/week4/inference.py:474`) |
-| ML-3 | `CARIES_CONF=0.005` รับแทบทุก box | `config.py`, `docker-compose.yml` | **แก้เบื้องต้น** — ค่า default/runtime เปลี่ยนเป็น `0.02`; ต้องประเมิน detector เพิ่มเพราะ threshold ไม่ได้แก้ model recall/precision ทั้งหมด | 🟡 ตรวจต่อ |
+| ML-3 | `CARIES_CONF=0.005` รับแทบทุก box | `config.py`, `docker-compose.yml` | **แก้และประเมินซ้ำ** — ค่า default/runtime ใช้ `0.02` และค่า NMS IoU `0.30` ตาม pipeline reference; ต้องประเมินผล production ซ้ำหลังปรับ preprocessing ให้ตรงกับ training | 🟡 ต้องปรับ detector/point-cloud/RF ให้ input ตรงกับ training |
 | ML-4 | RF ได้ input เป็น vertex ของ polygon + grid จุดของ caries box แทน pixel coordinates แบบตอนเทรน | `surface_classification.py:182,246`, `detection.py:116-122` | feature `coverage` ผิดสเกล → surface/probability ไม่น่าเชื่อ | 🟠 สูง |
 | ML-5 | fallback ใส่ `probability: 0.0` แต่ label ยังเป็น caries | `surface_classification.py:197,223` | backend แปลงเป็น `null` ให้แล้ว (ไม่ต้องแก้ด่วน) | 🟢 ต่ำ |
 | ML-6 | ไม่ส่ง model versions / timings | `orchestrator.py:106` (มีข้อมูลใน `models/versions.py`) | `meta.models`="unknown", `timings_ms`={} | 🟢 ต่ำ — ขอให้ส่ง `meta.models:{detector, classifier}` และ `meta.timings_ms:{detection, pca, classification}` |
@@ -435,9 +492,9 @@ Raw ที่ ML เขียน: ดูตัวอย่าง `backend/src/fi
 | ML-8 | axes default ตอน PCA fail ไม่มี `clamped` | `postprocess.py` `safe_axes` | backend เติม `false` ให้แล้ว | 🟢 ต่ำ |
 | ML-9 | `meta.caries_count` นับจำนวน "ฟัน" ไม่ใช่ surface | `orchestrator.py:112` | backend ทิ้ง field นี้ | 🟢 ต่ำ |
 
-> เรื่อง "Confidence" ใน UI: `teeth[].confidence` คือความมั่นใจการ detect ฟัน ส่วนความมั่นใจของ
-> caries YOLO ยังไม่ถูกส่งออกมา (ตกลงกันแล้วว่า v1 ใช้เท่าที่มี) ถ้าอนาคตจะเพิ่ม `caries_confidence`
-> ให้ทำเป็น v1.1 (เพิ่ม field แบบ optional ไม่ทำให้ของเดิมพัง)
+> `teeth[].confidence` คือความมั่นใจการ detect ฟัน ส่วน `surfaces[].probability` คือ caries YOLO
+> detector confidence ของ lesion ที่ผูกกับ surface นั้น (ใช้ค่าสูงสุดเมื่อมีหลาย lesion) และแสดงเป็นเปอร์เซ็นต์
+> ค่า YOLO นี้ยังไม่ผ่าน calibration จึงไม่ควรตีความเป็น calibrated clinical probability
 
 ---
 
@@ -446,3 +503,5 @@ Raw ที่ ML เขียน: ดูตัวอย่าง `backend/src/fi
 | เวอร์ชัน | วันที่ | เปลี่ยนแปลง |
 |---|---|---|
 | v1 | 2026-09-30 | ฉบับแรกที่ freeze — surfaces เหลือเฉพาะด้านที่ผุ (3 ด้าน), เพิ่ม `has_caries`, `method`, `axes.clamped`, `meta.job_id`; `probability` nullable; backend adapter แปลงผล ML |
+| v1.1 | 2026-10-28 | **additive:** เพิ่ม `teeth[].caries[]` (lesion bbox/mask/centroid/confidence), `surfaces[].method` เพิ่ม `"Geometry_Heuristic"` (pipeline v2), `probability: null` สำหรับ heuristic; ผลเก่า `RF`/`XThirds_Fallback`/`CNN` ยัง parse ได้ |
+| v1.2 | 2026-10-29 | `Geometry_Heuristic` surface ส่ง caries YOLO detector confidence ที่มาจาก lesion บน surface นั้นใน `probability`; หลาย lesion ใช้ค่าสูงสุด; เป็น score ที่ยังไม่ calibrated; fallback/ผลเก่าที่ยังไม่มี score อาจเป็น `null` |

@@ -1,37 +1,60 @@
-# Dental Caries Detection - ML Service
+# Dental Caries Detection — ML Service
 
-Python microservice for the multi-stage dental caries pipeline: panoramic tooth
-segmentation, caries detection, PCA alignment, and Random Forest surface
-classification.
+FastAPI microservice for the v2 pipeline:
 
-## Technology Stack
+```text
+Pano-Seg YOLO → dedupe → crop PAD 20 → Crop-Seg (Detectron2)
+→ 1-class caries YOLO-seg on the tooth crop → crop→pano transform
+→ deterministic mesial/occlusal/distal heuristic
+```
 
-- **Framework**: FastAPI (Python 3.11+)
-- **ML Framework**: Ultralytics YOLOv8
-- **Image Processing**: OpenCV, Pillow
-- **Server**: Uvicorn (ASGI)
-- **Containerization**: Docker
+The caries checkpoint is listed in `models/versions.py` and enabled:
+`caries_detector: "verified"`, `caries_enabled: true` on `/health`. If the entry
+is removed, the service degrades to tooth segmentation and reports
+`caries_detector: "not_configured"`.
 
-## Project Structure
+Full design, empirical surface validation, and known gaps:
+[`docs-md/pipeline-v2-caries-crop.md`](../docs-md/pipeline-v2-caries-crop.md).
+
+## Technology
+
+- FastAPI + Uvicorn
+- Ultralytics YOLO (pano segmentation + 1-class caries segmentation)
+- Detectron2 Mask R-CNN R50-FPN (Crop-Seg)
+- OpenCV / NumPy
+- PostgreSQL (job status only)
+
+## Project structure
 
 ```text
 ml-service/
 ├── app/
-│   ├── main.py                 # FastAPI application entry point
-│   ├── config.py               # Runtime configuration
-│   ├── db.py                   # Job state database access
-│   ├── runner.py               # Inference process lifecycle
+│   ├── main.py                 FastAPI app: POST /infer, POST /cancel, GET /health
+│   ├── config.py               Runtime configuration
+│   ├── db.py                   Job state database access
+│   ├── runner.py               Child-process lifecycle
 │   └── pipeline/
-│       ├── detection.py        # Tooth/caries detection and ownership mapping
-│       ├── pca_alignment.py    # Tooth PCA axes
-│       ├── surface_classification.py
-│       ├── surface_cnn.py      # Stage 3b CNN surface model (off | shadow | cnn)
-│       └── orchestrator.py     # End-to-end inference and result publishing
+│       ├── detection.py        Stage 1: pano → dedupe → crop → Crop-Seg → caries
+│       ├── coordinate_transform.py  pano ↔ crop transforms
+│       ├── crop_utils.py       Neighbour suppression, polygon clipping
+│       ├── pca_alignment.py    Stage 2: PCA axes
+│       ├── surface_heuristic.py  Stage 3: deterministic surface rule
+│       ├── surface_classification.py  REFERENCE ONLY (retired RF)
+│       ├── surface_cnn.py      REFERENCE ONLY (future CNN option)
+│       ├── xml_annotations.py  AIM XML parser (training labels only)
+│       ├── numbering.py        FDI mapping
+│       └── postprocess.py      result.json encoding
 ├── models/
-│   ├── registry.py             # Artifact verification and model loading
-│   └── versions.py             # Model artifact manifest
+│   ├── registry.py             Artifact verification + model loading
+│   └── versions.py             Model artifact manifest
+├── scripts/
+│   ├── prepare_caries_crop_dataset.py
+│   ├── train_caries_crop_seg.py
+│   └── validate_surface_heuristic.py
+├── tests/
 ├── Dockerfile
 ├── requirements.txt
+├── requirements-detectron2.txt
 └── README.md
 ```
 
@@ -40,122 +63,134 @@ ml-service/
 The service loads the files listed in `models/versions.py` from `WEIGHTS_DIR`
 (default `/weights`):
 
-| Logical model | Artifact | Purpose |
-|---|---|---|
-| `pano_detector` | `Tooth_seg_pano_20250319.pt` | Detect and segment FDI teeth |
-| `caries_detector` | `caries_detect.pt` | Detect candidate caries |
-| `crop_segmenter` | `Tooth_seg_crop_20250424.pth` | Optional tooth-mask refinement |
-| `surface_classifier` | `dental_caries_surface_random_forest_13_features.pkl` | Production Random Forest classifier using the verified 13-feature geometric contract |
-| `surface_cnn` (Stage 3b) | `cnn_pca42/best_pca_s42_f{0..4}.pt` + `cnn_pca42/calibration_pca.json` | 5-fold EfficientNet-B0 per-tooth CNN (Distal/Mesial/Occlusal). Not listed in `versions.py`; loaded by `app/pipeline/surface_cnn.py` from `SURFACE_CNN_DIR` (default `/weights/cnn_pca42`) |
+| Logical model | Artifact | Required? | Purpose |
+|---|---|---|---|
+| `pano_detector` | `Tooth_seg_pano_20250319.pt` | yes | 32-class FDI tooth segmentation on the panorama |
+| `crop_segmenter` | `Tooth_seg_crop_20250424.pth` | yes unless `ENABLE_CROP_SEGMENTER=false` | 1-class Detectron2 tooth mask on each crop |
+| `caries_detector` | `caries_crop_seg_20261028.pt` | yes in the current deployment; optional in code | 1-class caries YOLO-seg on each tooth crop |
 
-## Surface CNN (Stage 3b)
+`models/versions.py` pins all three production artifacts and their SHA-256 hashes.
+The current deployment reports all three as `verified` on `/health`. The service
+can run without the caries checkpoint, but then it reports
+`caries_enabled: false` and does not return caries findings.
 
-`SURFACE_CNN_MODE` selects which model produces the surface findings (environment
-only; the code default is `off`):
+Quarantined/rejected artifacts (`caries_detect.pt`, the RF pickle) live in
+`_non-using/deprecated-serving-models/` and are not read by this service.
 
-| Mode | Behaviour |
-|---|---|
-| `off` | CNN not loaded/run; RF findings only |
-| `shadow` | CNN probabilities are stored under the separate `shadow_cnn` result key; RF findings stay primary |
-| `cnn` | Calibrated CNN findings become primary (`method: "CNN"`); the RF is kept as a fallback |
+## Inference tuning
 
-| Environment variable | Default | Purpose |
-|---|---|---|
-| `SURFACE_CNN_MODE` | `off` | `off` / `shadow` / `cnn` |
-| `SURFACE_CNN_DIR` | `/weights/cnn_pca42` | Folder with `best_pca_s42_f[0-9].pt` + calibration |
-| `SURFACE_CNN_CALIB` | `<DIR>/calibration_pca.json` | Temperature + per-surface thresholds |
-| `SURFACE_CNN_DEVICE` | `ML_DEVICE` or `cpu` | `cpu` or `cuda` |
-| `SURFACE_CNN_THREADS` | `4` | torch thread count |
-| `SURFACE_CNN_MAX_TEETH` | `0` (no limit) | Skip the stage above this tooth count |
-
-Result keys added by Stage 3b (unknown to the backend/frontend zod schemas and
-therefore stripped, so the existing API contract is unchanged):
-
-- `surface_source`: `"cnn"` or `"rf"` — which model produced `teeth[].surfaces[]`
-- `shadow_cnn`: evidence block (`mode`, `ready`, `n_teeth`, `teeth[]`, `notes`, `info`, `timings_ms`)
-
-Fallback to the RF findings (recorded as `surface_source: "rf"`, never a failed
-job) happens when the bundle cannot load, produced no predictions, or no
-calibration thresholds are available. Rollback is one line: set
-`SURFACE_CNN_MODE=shadow` (or `off`) and run `docker compose up -d ml-service`.
-
-Full method, evidence and limitations: `docs-md/surface-cnn-full-report.md`.
-
-## Inference tuning parameters
-
-The following values belong to the production integration pipeline in
-`app/pipeline/detection.py`; they are not parameters from the production RF
-training/evaluation script:
-
-| Parameter | Value | Purpose |
+| Variable | Default | Purpose |
 |---|---:|---|
-| `CARIES_CONF` | `0.02` | Minimum confidence accepted from the YOLO caries detector |
-| `CARIES_IOU` | `0.30` | NMS IoU used by the caries detector |
-| `MIN_OWNERSHIP_SCORE` | `0.25` | Minimum tooth-mask score for assigning caries to a tooth |
-| `POINT_CLOUD_DENSITY` | `5` | Grid spacing used to approximate points inside a caries box |
+| `DETECTION_THRESHOLD` | `0.25` | Pano-Seg confidence |
+| `ENABLE_CROP_SEGMENTER` | `true` | Run Crop-Seg; `false` only for local debugging |
+| `CROP_PAD` | `20` | Pixels added around the tooth bbox |
+| `DEDUPE_IOU` | `0.50` | Duplicate bbox IoU for the same FDI |
+| `SUPPRESS_NEIGHBOURS` | `true` | Black out other detected teeth inside the crop |
+| `CARIES_CONF` | `0.25` | Caries YOLO confidence; recalibrate after training |
+| `CARIES_IOU` | `0.50` | Caries YOLO NMS IoU |
+| `SURFACE_LEFT_BOUND` | `0.30` | Left surface zone |
+| `SURFACE_RIGHT_BOUND` | `0.70` | Right surface zone |
 
-The reference RF pipeline starts after caries points are already available from
-annotations/XML. It trains and evaluates the surface classifier, so it does
-not need to define YOLO confidence, NMS, tooth ownership, or bbox point-cloud
-sampling. These production values are therefore integration assumptions and
-must be calibrated against detector evaluation data; they must not be
-described as values copied from the RF reference pipeline.
+The surface direction table and the measured 79.7% 3-way agreement with the
+XML annotations are in the pipeline doc. The heuristic is deterministic:
+`method` is `"Geometry_Heuristic"`. `surfaces[].probability` carries the
+highest YOLO caries-detection confidence assigned to that surface. This score
+is not calibrated as a probability that the whole surface is carious.
 
 ## Setup
 
-### Local Development
+### Docker (recommended)
 
 ```bash
-# Create virtual environment
+cd dental-caries-detection
+docker compose up -d --build ml-service
+curl http://localhost:8001/health
+```
+
+Detectron2 is installed from the CPU wheel in the Dockerfile (torch 2.4.1 /
+cp310 / Linux). It is **not** in `requirements.txt` because it is not on PyPI.
+For a local Linux CPU install use `requirements-detectron2.txt`.
+
+Crop-Seg input is preprocessed exactly like Detectron2 `DefaultPredictor`:
+BGR→RGB, then `ResizeShortestEdge(MIN_SIZE_TEST=800, MAX_SIZE_TEST=1333)`,
+both pinned in `models/versions.py`. The model does not resize internally; the
+implementation logs `crop_seg refined N/M tooth masks` and warns when `N=0`
+(all teeth would otherwise fall back to pano masks).
+
+### Local
+
+```bash
 python -m venv venv
-source venv/bin/activate  # Linux/Mac
-venv\Scripts\activate     # Windows
-
-# Install dependencies
+source venv/bin/activate          # Windows: venv\Scripts\activate
 pip install -r requirements.txt
+# optional, Linux only:
+pip install -r requirements-detectron2.txt
 
-# Run the service
+export DATABASE_URL=sqlite:///./dev.db
+export WEIGHTS_DIR="$PWD/weights"
+export ENABLE_CROP_SEGMENTER=false   # only if Detectron2 is unavailable
+
 uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
 ```
 
-### Docker
+### Train the caries model
 
 ```bash
-# Build
-docker build -t dental-caries-ml-service .
+# 1) dataset (must use --crop-seg on for train/serve parity)
+python scripts/prepare_caries_crop_dataset.py \
+  --images-root "D:/Mahidol University/SP/data/500 cases with annotation" \
+  --weights-dir weights --out datasets/caries_crop_v1 \
+  --crop-seg on --val-fraction 0.2 --negatives-per-case 3 --viz 24
 
-# Run
-docker run -p 8000:8000 dental-caries-ml-service
+# 2) train + export + print the versions.py entry
+python scripts/train_caries_crop_seg.py \
+  --data datasets/caries_crop_v1/data.yaml \
+  --model yolov8s-seg.pt --epochs 100 --imgsz 640 --batch 8 --device 0 \
+  --export-to weights/caries_crop_seg_YYYYMMDD.pt
 ```
 
-## API Endpoints
-
-The backend owns the public API contract. The ML service receives jobs through
-the shared-volume workflow described in `docs-md/ml-service-data-flow.md`.
-
-### GET /health
-Health check endpoint returning model status.
-
-### GET /model/info
-Get model metadata and configuration.
-
-## Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `ML_SERVICE_PORT` | `8000` | Service port |
-| `ML_SERVICE_HOST` | `0.0.0.0` | Service host |
-| `WEIGHTS_DIR` | `/weights` | Directory containing all model artifacts |
-| `CARIES_CONF` | `0.02` | Minimum caries confidence |
-| `CARIES_IOU` | `0.30` | Caries detector NMS IoU |
-| `POINT_CLOUD_DENSITY` | `5` | Caries bounding-box point-cloud spacing |
-| `DETECTION_THRESHOLD` | `0.25` | Minimum tooth confidence |
-| `ENABLE_CROP_SEGMENTER` | `false` | Enable optional crop-mask refinement; disabled to match the reference RF pipeline |
-| `LOG_LEVEL` | `info` | Logging level |
-
-## Running Tests
+Add the printed entry to `models/versions.py`, restart the service, and verify:
 
 ```bash
-pip install pytest
-pytest tests/ -v
+curl -s http://localhost:8001/health | jq
+# artifacts.caries_detector == "verified", caries_enabled == true
 ```
+
+## API
+
+- `POST /infer {jobId}` — start a job (backend only)
+- `POST /cancel` — cancel the active job
+- `GET /health` — artifact status, `ready`, `caries_enabled`, `active_job_id`
+
+`ready` covers the tooth pipeline (pano + Crop-Seg, or Crop-Seg deliberately
+disabled). It does **not** require caries.
+
+The backend owns the public API contract; result shape is documented in
+[`docs-md/api-contract-v1.md`](../docs-md/api-contract-v1.md) (v1.2 sends the
+caries detector confidence for each geometry-assigned surface in
+`surfaces[].probability`).
+
+## Tests
+
+```bash
+python -m pytest \
+  tests/test_coordinate_transform.py \
+  tests/test_surface_heuristic.py \
+  tests/test_detection.py \
+  tests/test_xml_annotations.py \
+  tests/test_crop_utils.py \
+  tests/test_postprocess.py -q
+
+DATABASE_URL=sqlite:///./test.db \
+WEIGHTS_DIR="$PWD/weights" \
+ENABLE_CROP_SEGMENTER=false \
+python -m pytest tests/test_api.py -q
+```
+
+`tests/test_surface_cnn_parity.py`, `tests/bench_surface_cnn.py`, and
+`tests/e2e_offline_eval.py` belong to the reference-only CNN path and are not
+part of the serving pipeline.
+
+## Production model files and local archives
+
+The serving container loads the three files mounted from `weights/`: `Tooth_seg_pano_20250319.pt`, `Tooth_seg_crop_20250424.pth`, and `caries_crop_seg_20261028.pt`. The optional reference-only CNN path is disabled by default; its weights and the legacy `weights.zip` bundle are kept locally under `archive/` and are excluded from Git and the Docker build context. Older RF and caries checkpoints are retained in the repository-level `_non-using/deprecated-serving-models` archive.

@@ -1,0 +1,554 @@
+{
+  "args": {
+    "images_root": "/workspace/data/500 cases with annotation",
+    "dataset": "datasets/caries_crop_v1",
+    "weights_dir": "weights",
+    "cases": "10,20,42",
+    "device": "cuda",
+    "out": "/audit/inference-parity-gpu-20261029.json"
+  },
+  "versions": {
+    "torch": "2.4.1+cu121",
+    "ultralytics": "8.4.191"
+  },
+  "crop_input_format": "BGR",
+  "cases": [
+    {
+      "case": 10,
+      "xml_issues": 0,
+      "teeth": 29,
+      "refined": 29,
+      "grayscale_channels_equal": true,
+      "crop_comparisons": [
+        {
+          "fdi": 27,
+          "saved_shape": [
+            356,
+            208,
+            3
+          ],
+          "live_shape": [
+            356,
+            208,
+            3
+          ],
+          "pixels_equal": true,
+          "different_pixel_fraction": 0.0
+        },
+        {
+          "fdi": 33,
+          "saved_shape": [
+            308,
+            154,
+            3
+          ],
+          "live_shape": [
+            308,
+            154,
+            3
+          ],
+          "pixels_equal": true,
+          "different_pixel_fraction": 0.0
+        },
+        {
+          "fdi": 11,
+          "saved_shape": [
+            406,
+            152,
+            3
+          ],
+          "live_shape": [
+            406,
+            152,
+            3
+          ],
+          "pixels_equal": true,
+          "different_pixel_fraction": 0.0
+        },
+        {
+          "fdi": 34,
+          "saved_shape": [
+            335,
+            176,
+            3
+          ],
+          "live_shape": [
+            335,
+            176,
+            3
+          ],
+          "pixels_equal": true,
+          "different_pixel_fraction": 0.0
+        },
+        {
+          "fdi": 26,
+          "saved_shape": [
+            325,
+            218,
+            3
+          ],
+          "live_shape": [
+            325,
+            218,
+            3
+          ],
+          "pixels_equal": true,
+          "different_pixel_fraction": 0.0
+        }
+      ],
+      "predictions": [
+        {
+          "fdi": 45,
+          "confidence": 0.2852957248687744,
+          "surface": "distal",
+          "centroid": [
+            1166.6858681846875,
+            930.6644982325394
+          ]
+        },
+        {
+          "fdi": 26,
+          "confidence": 0.5662614703178406,
+          "surface": "distal",
+          "centroid": [
+            2067.488486608958,
+            732.927792205948
+          ]
+        }
+      ],
+      "lesion_metrics": {
+        "0.3": {
+          "tp": 1,
+          "fp": 1,
+          "fn": 1,
+          "matched_correct_surface": 1,
+          "all_gt_correct_surface_fraction": 0.5
+        },
+        "0.5": {
+          "tp": 1,
+          "fp": 1,
+          "fn": 1,
+          "matched_correct_surface": 1,
+          "all_gt_correct_surface_fraction": 0.5
+        }
+      }
+    },
+    {
+      "case": 20,
+      "xml_issues": 0,
+      "teeth": 31,
+      "refined": 31,
+      "grayscale_channels_equal": true,
+      "crop_comparisons": [
+        {
+          "fdi": 36,
+          "saved_shape": [
+            365,
+            291,
+            3
+          ],
+          "live_shape": [
+            365,
+            291,
+            3
+          ],
+          "pixels_equal": true,
+          "different_pixel_fraction": 0.0
+        },
+        {
+          "fdi": 45,
+          "saved_shape": [
+            360,
+            220,
+            3
+          ],
+          "live_shape": [
+            360,
+            220,
+            3
+          ],
+          "pixels_equal": false,
+          "different_pixel_fraction": 0.0023106060606060607
+        },
+        {
+          "fdi": 28,
+          "saved_shape": [
+            327,
+            203,
+            3
+          ],
+          "live_shape": [
+            327,
+            203,
+            3
+          ],
+          "pixels_equal": true,
+          "different_pixel_fraction": 0.0
+        },
+        {
+          "fdi": 27,
+          "saved_shape": [
+            361,
+            210,
+            3
+          ],
+          "live_shape": [
+            361,
+            210,
+            3
+          ],
+          "pixels_equal": true,
+          "different_pixel_fraction": 0.0
+        },
+        {
+          "fdi": 26,
+          "saved_shape": [
+            377,
+            196,
+            3
+          ],
+          "live_shape": [
+            377,
+            196,
+            3
+          ],
+          "pixels_equal": true,
+          "different_pixel_fraction": 0.0
+        },
+        {
+          "fdi": 37,
+          "saved_shape": [
+            298,
+            295,
+            3
+          ],
+          "live_shape": [
+            298,
+            295,
+            3
+          ],
+          "pixels_equal": true,
+          "different_pixel_fraction": 0.0
+        },
+        {
+          "fdi": 24,
+          "saved_shape": [
+            392,
+            155,
+            3
+          ],
+          "live_shape": [
+            392,
+            155,
+            3
+          ],
+          "pixels_equal": true,
+          "different_pixel_fraction": 0.0
+        },
+        {
+          "fdi": 46,
+          "saved_shape": [
+            373,
+            331,
+            3
+          ],
+          "live_shape": [
+            373,
+            332,
+            3
+          ],
+          "pixels_equal": false
+        },
+        {
+          "fdi": 15,
+          "saved_shape": [
+            372,
+            164,
+            3
+          ],
+          "live_shape": [
+            372,
+            164,
+            3
+          ],
+          "pixels_equal": true,
+          "different_pixel_fraction": 0.0
+        },
+        {
+          "fdi": 25,
+          "saved_shape": [
+            384,
+            167,
+            3
+          ],
+          "live_shape": [
+            384,
+            167,
+            3
+          ],
+          "pixels_equal": true,
+          "different_pixel_fraction": 0.0
+        }
+      ],
+      "predictions": [
+        {
+          "fdi": 36,
+          "confidence": 0.7550162672996521,
+          "surface": "mesial",
+          "centroid": [
+            1981.390665556095,
+            941.1086930733193
+          ]
+        },
+        {
+          "fdi": 36,
+          "confidence": 0.6418018341064453,
+          "surface": "distal",
+          "centroid": [
+            2093.005621377064,
+            908.96331374267
+          ]
+        },
+        {
+          "fdi": 45,
+          "confidence": 0.45897847414016724,
+          "surface": "distal",
+          "centroid": [
+            1184.1980207770005,
+            944.2327330966824
+          ]
+        },
+        {
+          "fdi": 37,
+          "confidence": 0.6168928742408752,
+          "surface": "occlusal",
+          "centroid": [
+            2155.600032332176,
+            870.7462421232567
+          ]
+        },
+        {
+          "fdi": 37,
+          "confidence": 0.4495903551578522,
+          "surface": "occlusal",
+          "centroid": [
+            2155.434255677605,
+            847.5354383935558
+          ]
+        },
+        {
+          "fdi": 24,
+          "confidence": 0.39081069827079773,
+          "surface": "distal",
+          "centroid": [
+            1894.3193306926958,
+            804.0595244348528
+          ]
+        },
+        {
+          "fdi": 46,
+          "confidence": 0.39528894424438477,
+          "surface": "mesial",
+          "centroid": [
+            1160.6544131385615,
+            947.1312122348804
+          ]
+        },
+        {
+          "fdi": 15,
+          "confidence": 0.7557448744773865,
+          "surface": "distal",
+          "centroid": [
+            1169.3759690467782,
+            778.5555790191092
+          ]
+        },
+        {
+          "fdi": 25,
+          "confidence": 0.4004533886909485,
+          "surface": "distal",
+          "centroid": [
+            1983.9314489463386,
+            790.9747731940786
+          ]
+        }
+      ],
+      "lesion_metrics": {
+        "0.3": {
+          "tp": 7,
+          "fp": 2,
+          "fn": 2,
+          "matched_correct_surface": 7,
+          "all_gt_correct_surface_fraction": 0.7777777777777778
+        },
+        "0.5": {
+          "tp": 5,
+          "fp": 4,
+          "fn": 4,
+          "matched_correct_surface": 5,
+          "all_gt_correct_surface_fraction": 0.5555555555555556
+        }
+      }
+    },
+    {
+      "case": 42,
+      "xml_issues": 0,
+      "teeth": 31,
+      "refined": 31,
+      "grayscale_channels_equal": true,
+      "crop_comparisons": [
+        {
+          "fdi": 46,
+          "saved_shape": [
+            340,
+            250,
+            3
+          ],
+          "live_shape": [
+            340,
+            250,
+            3
+          ],
+          "pixels_equal": false,
+          "different_pixel_fraction": 0.00021176470588235295
+        },
+        {
+          "fdi": 36,
+          "saved_shape": [
+            361,
+            292,
+            3
+          ],
+          "live_shape": [
+            361,
+            292,
+            3
+          ],
+          "pixels_equal": true,
+          "different_pixel_fraction": 0.0
+        },
+        {
+          "fdi": 35,
+          "saved_shape": [
+            321,
+            204,
+            3
+          ],
+          "live_shape": [
+            321,
+            204,
+            3
+          ],
+          "pixels_equal": true,
+          "different_pixel_fraction": 0.0
+        },
+        {
+          "fdi": 25,
+          "saved_shape": [
+            364,
+            154,
+            3
+          ],
+          "live_shape": [
+            364,
+            154,
+            3
+          ],
+          "pixels_equal": true,
+          "different_pixel_fraction": 0.0
+        },
+        {
+          "fdi": 47,
+          "saved_shape": [
+            301,
+            250,
+            3
+          ],
+          "live_shape": [
+            301,
+            250,
+            3
+          ],
+          "pixels_equal": false,
+          "different_pixel_fraction": 0.0010897009966777409
+        },
+        {
+          "fdi": 15,
+          "saved_shape": [
+            361,
+            175,
+            3
+          ],
+          "live_shape": [
+            361,
+            175,
+            3
+          ],
+          "pixels_equal": false,
+          "different_pixel_fraction": 0.0015512465373961218
+        },
+        {
+          "fdi": 33,
+          "saved_shape": [
+            368,
+            170,
+            3
+          ],
+          "live_shape": [
+            368,
+            170,
+            3
+          ],
+          "pixels_equal": true,
+          "different_pixel_fraction": 0.0
+        }
+      ],
+      "predictions": [
+        {
+          "fdi": 48,
+          "confidence": 0.3858916461467743,
+          "surface": "mesial",
+          "centroid": [
+            785.7627644002988,
+            897.8499815093287
+          ]
+        }
+      ],
+      "lesion_metrics": {
+        "0.3": {
+          "tp": 0,
+          "fp": 1,
+          "fn": 4,
+          "matched_correct_surface": 0,
+          "all_gt_correct_surface_fraction": 0.0
+        },
+        "0.5": {
+          "tp": 0,
+          "fp": 1,
+          "fn": 4,
+          "matched_correct_surface": 0,
+          "all_gt_correct_surface_fraction": 0.0
+        }
+      }
+    }
+  ],
+  "predictor_args": {
+    "pano": {
+      "imgsz": 640,
+      "conf": 0.25,
+      "iou": 0.7,
+      "rect": true,
+      "retina_masks": false,
+      "device": "cuda:0"
+    },
+    "caries": {
+      "imgsz": 640,
+      "conf": 0.25,
+      "iou": 0.5,
+      "rect": true,
+      "retina_masks": false,
+      "device": "cuda:0"
+    }
+  },
+  "elapsed_seconds": 19.979364410000017
+}

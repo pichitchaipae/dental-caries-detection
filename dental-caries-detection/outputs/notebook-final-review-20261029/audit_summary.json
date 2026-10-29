@@ -1,0 +1,339 @@
+{
+  "checked_at_utc": "2026-10-29T14:34:38.001718+00:00",
+  "scope": "Notebook correctness and validation reproducibility; no independent clinical-test claim.",
+  "samples": {
+    "raw_cases": 500,
+    "xml_lesions_all": 1979,
+    "train_cases": 400,
+    "validation_cases": 100,
+    "validation_crops": 626,
+    "validation_crop_lesions": 354,
+    "validation_panorama_lesions": 373
+  },
+  "historical_full": {
+    "threshold": 0.25,
+    "tp": 246,
+    "fp": 222,
+    "fn": 127,
+    "precision": 0.5256,
+    "recall": 0.6595,
+    "f1": 0.585,
+    "surface_accuracy": 0.8821,
+    "surface_n": 246
+  },
+  "fresh_full": {
+    "scope": "fresh validation; no independent-test claim",
+    "environment": {
+      "python": "3.10.19",
+      "python_executable": "D:\\Users\\jaopi\\anaconda3\\envs\\sp_project\\python.exe",
+      "environment_prefix": "D:\\Users\\jaopi\\anaconda3\\envs\\sp_project",
+      "platform": "Windows-10-10.0.26300-SP0",
+      "torch": "2.5.1",
+      "torchvision": "0.20.1",
+      "ultralytics": "8.4.175",
+      "numpy": "2.0.1",
+      "opencv-python": "4.13.0.90",
+      "opencv-python-headless": "5.0.0.93",
+      "pandas": "2.3.3",
+      "Pillow": "11.1.0",
+      "PyYAML": "6.0.3",
+      "ipywidgets": "8.1.9",
+      "scikit-learn": "1.7.2",
+      "ipykernel": "7.2.0",
+      "detectron2": "0.6"
+    },
+    "checkpoint_sha256": "c0d4768fdbd90567feb28c5df34fa760321e79a08acbb47e11ba84a5c2c67d74",
+    "crop_validation": {
+      "metrics/precision(B)": 0.5884268281036777,
+      "metrics/recall(B)": 0.5932203389830508,
+      "metrics/mAP50(B)": 0.5632640867243537,
+      "metrics/mAP50-95(B)": 0.2121734992235153,
+      "metrics/precision(M)": 0.5372791639435711,
+      "metrics/recall(M)": 0.508404695710701,
+      "metrics/mAP50(M)": 0.48428217260267864,
+      "metrics/mAP50-95(M)": 0.15732025905124183,
+      "fitness": 0.36949375827475717
+    },
+    "val_cases": 100,
+    "selected": {
+      "threshold": 0.25,
+      "tp": 246,
+      "fp": 219,
+      "fn": 127,
+      "precision": 0.5290322580645161,
+      "recall": 0.6595174262734584,
+      "f1": 0.5871121718377088,
+      "surface_n": 246,
+      "surface_accuracy": 0.8821138211382114
+    },
+    "surface_macro": {
+      "n": 246,
+      "accuracy": 0.8821138211382114,
+      "precision": 0.8474040779102339,
+      "recall": 0.8509485094850948,
+      "f1": 0.8485358636873789
+    },
+    "surface_confusion": [
+      [
+        30,
+        5,
+        10
+      ],
+      [
+        0,
+        78,
+        0
+      ],
+      [
+        13,
+        1,
+        109
+      ]
+    ],
+    "case_bootstrap_f1": [
+      0.5443337896886876,
+      0.5870712436923612,
+      0.6251456271888854
+    ],
+    "audit_directory": "C:\\Users\\jaopi\\AppData\\Local\\Temp\\caries_final_full_eval_zdbr4seg"
+  },
+  "native_inference": {
+    "environment": {
+      "python": "3.10.19",
+      "python_executable": "D:\\Users\\jaopi\\anaconda3\\envs\\sp_project\\python.exe",
+      "environment_prefix": "D:\\Users\\jaopi\\anaconda3\\envs\\sp_project",
+      "platform": "Windows-10-10.0.26300-SP0",
+      "torch": "2.5.1",
+      "torchvision": "0.20.1",
+      "ultralytics": "8.4.6",
+      "numpy": "2.0.1",
+      "opencv-python": "4.13.0.90",
+      "opencv-python-headless": "5.0.0.93",
+      "pandas": "2.3.3",
+      "Pillow": "11.1.0",
+      "PyYAML": "6.0.3",
+      "ipywidgets": "8.1.9",
+      "scikit-learn": "1.7.2",
+      "ipykernel": "7.2.0",
+      "detectron2": "0.6"
+    },
+    "case": 10,
+    "teeth": 29,
+    "refined": 29,
+    "lesions": 2,
+    "metrics": {
+      "threshold": 0.25,
+      "tp": 1,
+      "fp": 1,
+      "fn": 1,
+      "precision": 0.5,
+      "recall": 0.5,
+      "f1": 0.5,
+      "surface_n": 1,
+      "surface_accuracy": 1.0
+    },
+    "synthetic_and_roundtrip_checks": "passed"
+  },
+  "training_smoke": {
+    "scope": "one-epoch code-path check; no quality or reproduction claim",
+    "ultralytics": "8.4.175",
+    "import_root": "C:\\Users\\jaopi\\AppData\\Local\\Temp\\caries_final_audit_wheels\\ultralytics_8_4_175",
+    "environment": {
+      "python": "3.10.19",
+      "python_executable": "D:\\Users\\jaopi\\anaconda3\\envs\\sp_project\\python.exe",
+      "environment_prefix": "D:\\Users\\jaopi\\anaconda3\\envs\\sp_project",
+      "platform": "Windows-10-10.0.26300-SP0",
+      "torch": "2.5.1",
+      "torchvision": "0.20.1",
+      "ultralytics": "8.4.175",
+      "numpy": "2.0.1",
+      "opencv-python": "4.13.0.90",
+      "opencv-python-headless": "5.0.0.93",
+      "pandas": "2.3.3",
+      "Pillow": "11.1.0",
+      "PyYAML": "6.0.3",
+      "ipywidgets": "8.1.9",
+      "scikit-learn": "1.7.2",
+      "ipykernel": "7.2.0",
+      "detectron2": "0.6"
+    },
+    "train_images": 6,
+    "val_images": 3,
+    "overrides": {
+      "epochs": 1,
+      "imgsz": 320,
+      "batch": 2,
+      "workers": 0,
+      "amp": false,
+      "plots": false
+    },
+    "training_export": "passed",
+    "direct_validation": "passed",
+    "optimizer": "AdamW",
+    "candidate_sha256": "0ae51b4d54f35c6a7f51ba42a941768149026da3a87b0fe55055e45782d76d87",
+    "audit_directory": "C:\\Users\\jaopi\\AppData\\Local\\Temp\\caries_final_training_71egujj7",
+    "metrics": {
+      "metrics/precision(B)": 0.0,
+      "metrics/recall(B)": 0.0,
+      "metrics/mAP50(B)": 0.0,
+      "metrics/mAP50-95(B)": 0.0,
+      "metrics/precision(M)": 0.0,
+      "metrics/recall(M)": 0.0,
+      "metrics/mAP50(M)": 0.0,
+      "metrics/mAP50-95(M)": 0.0,
+      "fitness": 0.0
+    }
+  },
+  "preparation_smoke": {
+    "scope": "one-case preparation wiring check; negative RNG differs from a full 500-case pass",
+    "environment": {
+      "python": "3.10.19",
+      "python_executable": "D:\\Users\\jaopi\\anaconda3\\envs\\sp_project\\python.exe",
+      "environment_prefix": "D:\\Users\\jaopi\\anaconda3\\envs\\sp_project",
+      "platform": "Windows-10-10.0.26300-SP0",
+      "torch": "2.5.1",
+      "torchvision": "0.20.1",
+      "ultralytics": "8.4.175",
+      "numpy": "2.0.1",
+      "opencv-python": "4.13.0.90",
+      "opencv-python-headless": "5.0.0.93",
+      "pandas": "2.3.3",
+      "Pillow": "11.1.0",
+      "PyYAML": "6.0.3",
+      "ipywidgets": "8.1.9",
+      "scikit-learn": "1.7.2",
+      "ipykernel": "7.2.0",
+      "detectron2": "0.6"
+    },
+    "stats": {
+      "crops_train": 5,
+      "crops_negative": 3,
+      "lesions_used": 2,
+      "crops_positive": 2,
+      "crops_skipped_negative_sampling": 24,
+      "cases_used": 1
+    },
+    "case": {
+      "split": "train",
+      "lesions_xml": 2,
+      "crops": 5,
+      "lesions_used": 2,
+      "detected_teeth": 29,
+      "refined_teeth": 29
+    },
+    "nonempty_output_guard": "passed",
+    "coordinate_checks": "passed",
+    "audit_directory": "C:\\Users\\jaopi\\AppData\\Local\\Temp\\caries_final_preparation_3qrae5cr\\crops"
+  },
+  "ui_callbacks": {
+    "scope": "UI callbacks using a recorded real case-10 prediction fixture; live inference checked separately",
+    "project_input": "passed",
+    "PNG_upload": "passed",
+    "export_files": "passed",
+    "missing_checkpoint_error": "passed",
+    "legacy_upload_helper": "passed",
+    "audit_directory": "C:\\Users\\jaopi\\AppData\\Local\\Temp\\caries_final_ui_mjhbv547"
+  },
+  "precision_experiment": {
+    "environment": {
+      "python": "3.10.19",
+      "python_executable": "D:\\Users\\jaopi\\anaconda3\\envs\\sp_project\\python.exe",
+      "environment_prefix": "D:\\Users\\jaopi\\anaconda3\\envs\\sp_project",
+      "platform": "Windows-10-10.0.26300-SP0",
+      "torch": "2.5.1",
+      "torchvision": "0.20.1",
+      "ultralytics": "8.4.175",
+      "numpy": "2.0.1",
+      "opencv-python": "4.13.0.90",
+      "opencv-python-headless": "5.0.0.93",
+      "pandas": "2.3.3",
+      "Pillow": "11.1.0",
+      "PyYAML": "6.0.3",
+      "ipywidgets": "8.1.9",
+      "scikit-learn": "1.7.2",
+      "ipykernel": "7.2.0",
+      "detectron2": "0.6"
+    },
+    "checkpoint_sha256": "c0d4768fdbd90567feb28c5df34fa760321e79a08acbb47e11ba84a5c2c67d74",
+    "fixed_settings": {
+      "imgsz": 640,
+      "rect": true,
+      "conf": 0.001,
+      "iou": 0.7,
+      "split": "val"
+    },
+    "rows": [
+      {
+        "batch": 16,
+        "half": false,
+        "mask_mAP50": 0.48428217260267864
+      },
+      {
+        "batch": 16,
+        "half": true,
+        "mask_mAP50": 0.48749751580122613
+      },
+      {
+        "batch": 32,
+        "half": false,
+        "mask_mAP50": 0.4846797496184998
+      },
+      {
+        "batch": 32,
+        "half": true,
+        "mask_mAP50": 0.4910822203689582
+      }
+    ],
+    "fp16_actual_quantize": [
+      {
+        "quantize": 16
+      }
+    ],
+    "embedded_training_mask_mAP50": 0.49127
+  },
+  "isolated_ultralytics": {
+    "version": "8.4.175",
+    "wheel": "ultralytics-8.4.175-py3-none-any.whl",
+    "wheel_sha256": "16245f680cb6c27856398b3d78a4f4e43d583d0f0c65de0b22431526881b1e1d",
+    "installation_changed": false
+  },
+  "matching_checks": {
+    "same_fdi_and_iou": true,
+    "one_to_one_matching": true,
+    "json_roundtrip": true,
+    "zero_matches": true,
+    "unknown_surface_rejected": true,
+    "negative_count_rejected": true
+  },
+  "artifacts": [
+    "fresh_full_evaluation.json",
+    "fresh_full_predictions.json",
+    "fresh_crop_validation.json",
+    "case10_native_research.json",
+    "case10_native_service.json",
+    "training_smoke_record.json",
+    "executed_notebook_sources.json"
+  ],
+  "final_default_execution": {
+    "kernel": "sp_project",
+    "python": "3.10.19",
+    "cells": 66,
+    "code_cells": 34,
+    "cell_errors": 0,
+    "english_sources": true,
+    "valid_embedded_pngs": 10,
+    "nbformat_valid": true,
+    "widget_state_valid": true
+  },
+  "final_notebook_sha256": "3087afeec0fccbd35bd36e636fb79bd4266054c8739da3a309674e41e40d6bbe",
+  "final_source_sha256": "ad332de8461d5e11fd9519217b25f415c080d36c61febf404fa0473c7375bbeb",
+  "artifact_sha256": {
+    "fresh_full_evaluation.json": "25e0a441d7720692444ded863cbc573b73d373739972c8503e556e479555830f",
+    "fresh_full_predictions.json": "f07ac7bc60bdcab66de7da09710caed8a7f92bda42dff14158666e253a2f1f73",
+    "fresh_crop_validation.json": "e6bc10110137901cae101d8b18aef9087ef0ba18645699bd8461fcf1d9e53554",
+    "case10_native_research.json": "fa5dbc7fe03259c09133b5299486cfeebba03af68927f3c7b80f57cb0fd24f7e",
+    "case10_native_service.json": "5189b11307a9d7754ce5c92db6bfdce0eccdf6e78f54d399f28724c1b89f0441",
+    "training_smoke_record.json": "aee8d031f15f2717c914a12ce58422366396915ceb3539b164bb696205152cd1",
+    "executed_notebook_sources.json": "55eb03340c505434ea51ac6a96d747fe479e2b55c8e9c7c1b8ab3a65cec77312"
+  }
+}

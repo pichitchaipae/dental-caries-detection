@@ -1,4 +1,10 @@
-"""Stage 3b -- CNN surface scorer / shadow runner (ml-service side).
+"""Stage 3b (reference only) -- CNN surface scorer / shadow runner (ml-service side).
+
+STATUS: NOT USED BY SERVING.  The orchestrator no longer imports this module;
+production surfaces come from ``app/pipeline/surface_heuristic.py``.  The CNN
+remains a documented future option (Decision Log: keep ``cnn_pca42`` as an
+option, not primary).  The tests under ``tests/test_surface_cnn_parity.py`` and
+``tests/bench_surface_cnn.py`` still exercise it for reference.
 
 WHY THIS FILE IS A VENDORED COPY
 --------------------------------

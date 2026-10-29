@@ -1,6 +1,15 @@
 # รายงานฉบับเต็ม: โมเดล CNN จำแนกพื้นผิวฟันผุรายซี่ (Stage 3b) และการนำขึ้นใช้งานจริง
 # Full Report: Per-Tooth Caries Surface CNN (Stage 3b) and Its Deployment
 
+> **STATUS UPDATE (2026-10-28): REFERENCE ONLY — NOT SERVING.**
+> CNN ถูกถอดออกจาก serving path แล้ว; `ml-service/app/pipeline/orchestrator.py`
+> ไม่ import `surface_cnn.py` อีกต่อไป และ `SURFACE_CNN_MODE` ไม่มีผลกับผลผลิตจริง.
+> Surface ของ pipeline v2 มาจาก deterministic geometry heuristic
+> (`app/pipeline/surface_heuristic.py`, `method = "Geometry_Heuristic"`).
+> เอกสารนี้เก็บไว้เป็นประวัติการทดลอง/ทางเลือกในอนาคต (Decision Log: เก็บ
+> `cnn_pca42` เป็น option ไม่ใช่ primary). Flow ปัจจุบัน:
+> `docs-md/pipeline-v2-caries-crop.md`.
+
 > สถานะเอกสาร (Document status): 20 ตุลาคม 2026 — CNN ถูก freeze และตั้งเป็นโมเดลหลักของ Stage 3b ใน `ml-service` แล้ว (`SURFACE_CNN_MODE=cnn`)
 > ขอบเขต (Scope): วิธีได้มาของโมเดล CNN (ข้อมูล, โปรโตคอล, การฝึก, การ calibrate), หลักฐานผลการวัด, และรายละเอียดการ deploy ใน `dental-caries-detection`
 > เอกสารพี่น้อง (Companion): `caries-detection-model/PIPELINE_DOCUMENTATION_TH_EN.md` (รายงาน Data Science ฉบับเดิม 14 ต.ค. 2026 — ก่อนมีผล Stage 2 ของ CNN)

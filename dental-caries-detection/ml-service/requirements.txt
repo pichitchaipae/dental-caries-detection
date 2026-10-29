@@ -1,3 +1,7 @@
+# detectron2 is NOT listed here: it is not published on PyPI with a wheel that
+# matches torch 2.4.1, so `pip install -r requirements.txt` would fail.  The
+# Dockerfile installs the pre-built CPU wheel; for a local install use
+# requirements-detectron2.txt.
 fastapi==0.115.0
 uvicorn[standard]==0.30.6
 pydantic==2.8.2

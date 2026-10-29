@@ -4,8 +4,17 @@ const pointSchema = z.tuple([z.number(), z.number()]);
 const rawSurfaceSchema = z.object({
   name: z.string(),
   label: z.string().optional(),
-  probability: z.number().min(0).max(1).optional(),
+  probability: z.number().min(0).max(1).nullish(),
   method: z.string().optional(),
+});
+const rawCariesSchema = z.object({
+  bbox: z.tuple([z.number(), z.number(), z.number(), z.number()]),
+  mask: z.object({
+    encoding: z.literal('polygon'),
+    data: z.array(pointSchema),
+  }),
+  confidence: z.number().min(0).max(1),
+  centroid: pointSchema,
 });
 const rawToothSchema = z.object({
   id: z.number().int().optional(),
@@ -25,6 +34,8 @@ const rawToothSchema = z.object({
     })
     .optional(),
   surfaces: z.array(rawSurfaceSchema),
+  // Additive in API v1.1: lesion mask + bbox in pano coordinates.
+  caries: z.array(rawCariesSchema).optional(),
 });
 const rawResultSchema = z.object({
   meta: z.object({
@@ -43,7 +54,9 @@ const rawResultSchema = z.object({
 });
 
 const surfaceNames = new Set(['mesial', 'distal', 'occlusal']);
-const surfaceMethods = new Set(['RF', 'XThirds_Fallback', 'CNN']);
+// RF and CNN are kept in the union for reading historical results; the current
+// ml-service emits only Geometry_Heuristic.
+const surfaceMethods = new Set(['Geometry_Heuristic', 'RF', 'XThirds_Fallback', 'CNN']);
 
 export interface ApiInferenceData {
   meta: {
@@ -70,7 +83,13 @@ export interface ApiInferenceData {
       name: 'mesial' | 'distal' | 'occlusal';
       label: 'caries';
       probability: number | null;
-      method: 'RF' | 'XThirds_Fallback' | 'CNN';
+      method: 'Geometry_Heuristic' | 'RF' | 'XThirds_Fallback' | 'CNN';
+    }>;
+    caries: Array<{
+      bbox: [number, number, number, number];
+      mask: { encoding: 'polygon'; data: [number, number][] };
+      confidence: number;
+      centroid: [number, number];
     }>;
   }>;
 }
@@ -112,7 +131,7 @@ export function adaptInferenceResult(raw: unknown): ApiInferenceData {
     for (const surface of tooth.surfaces) {
       const name = normalizeSurfaceName(surface.name);
       const method = surfaceMethods.has(surface.method ?? '')
-        ? (surface.method as 'RF' | 'XThirds_Fallback' | 'CNN')
+        ? (surface.method as 'Geometry_Heuristic' | 'RF' | 'XThirds_Fallback' | 'CNN')
         : (() => {
             throw new Error(`Unsupported surface method: ${surface.method ?? 'missing'}`);
           })();
@@ -144,6 +163,7 @@ export function adaptInferenceResult(raw: unknown): ApiInferenceData {
       },
       has_caries: surfaces.size > 0,
       surfaces: [...surfaces.values()],
+      caries: tooth.caries ?? [],
     };
   });
 

@@ -6,7 +6,15 @@ export interface SurfaceFinding {
   name: 'mesial' | 'distal' | 'occlusal';
   label: 'caries';
   probability: number | null;
-  method: 'RF' | 'XThirds_Fallback' | 'CNN';
+  method: 'Geometry_Heuristic' | 'RF' | 'XThirds_Fallback' | 'CNN';
+}
+
+// Lesion mask in pano coordinates (API v1.1 additive field).
+export interface CariesLesion {
+  bbox: [number, number, number, number];
+  mask: { encoding: 'polygon'; data: [number, number][] };
+  confidence: number;
+  centroid: [number, number];
 }
 
 export interface ToothAxes {
@@ -30,6 +38,7 @@ export interface Tooth {
   axes: ToothAxes;
   has_caries: boolean;
   surfaces: SurfaceFinding[];
+  caries?: CariesLesion[];
 }
 
 export interface InferenceData {
@@ -48,7 +57,13 @@ const surfaceFindingSchema = z.object({
   name: z.enum(['mesial', 'distal', 'occlusal']),
   label: z.literal('caries'),
   probability: z.number().min(0).max(1).nullable(),
-  method: z.enum(['RF', 'XThirds_Fallback', 'CNN']),
+  method: z.enum(['Geometry_Heuristic', 'RF', 'XThirds_Fallback', 'CNN']),
+});
+const cariesLesionSchema = z.object({
+  bbox: z.tuple([z.number(), z.number(), z.number(), z.number()]),
+  mask: z.object({ encoding: z.literal('polygon'), data: z.array(pointSchema).min(3) }),
+  confidence: z.number().min(0).max(1),
+  centroid: pointSchema,
 });
 const toothSchema = z.object({
   id: z.number().int(),
@@ -67,6 +82,7 @@ const toothSchema = z.object({
   }),
   has_caries: z.boolean(),
   surfaces: z.array(surfaceFindingSchema).max(3),
+  caries: z.array(cariesLesionSchema).optional(),
 });
 const inferenceDataSchema = z.object({
   meta: z.object({

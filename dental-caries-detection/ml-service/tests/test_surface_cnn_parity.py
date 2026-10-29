@@ -26,6 +26,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 HERE = Path(__file__).resolve().parent
 if str(HERE.parent) not in sys.path:            # allow `python tests/...`
@@ -297,16 +298,25 @@ def main() -> int:
     return 0
 
 
+_requires_reference = pytest.mark.skipif(
+    not REF_PATH.is_file(),
+    reason=f"surface-CNN parity reference not present: {REF_PATH}",
+)
+
+
+@_requires_reference
 def test_static_parity() -> None:
     problems = check_static(load_reference())
     assert not problems, problems
 
 
+@_requires_reference
 def test_numeric_parity() -> None:
     problems = check_numeric(load_reference())
     assert not problems, problems
 
 
+@_requires_reference
 def test_oracle_parity() -> None:
     problems = check_oracle(load_reference())
     assert not problems, problems

@@ -76,4 +76,53 @@ describe('parseProcessResponse', () => {
     const noSize = { ...doneResponse, data: { ...apiData, image: undefined } };
     expect(() => parseProcessResponse(noSize)).toThrow();
   });
+
+  it('parses Geometry_Heuristic findings and caries lesions', () => {
+    const geometry = {
+      ...doneResponse,
+      data: {
+        ...apiData,
+        teeth: [
+          {
+            ...apiData.teeth[0],
+            surfaces: [
+              {
+                name: 'distal',
+                label: 'caries',
+                probability: 0.77,
+                method: 'Geometry_Heuristic',
+              },
+            ],
+            has_caries: true,
+            caries: [
+              {
+                bbox: [11, 30, 8, 12],
+                mask: {
+                  encoding: 'polygon',
+                  data: [
+                    [11, 30],
+                    [19, 30],
+                    [15, 42],
+                  ],
+                },
+                confidence: 0.77,
+                centroid: [15, 34],
+              },
+            ],
+          },
+        ],
+      },
+    };
+
+    const parsed = parseProcessResponse(geometry);
+    if (parsed.status !== 'done') throw new Error('expected a done response');
+
+    expect(parsed.data.teeth[0].surfaces[0]).toEqual({
+      name: 'distal',
+      label: 'caries',
+      probability: 0.77,
+      method: 'Geometry_Heuristic',
+    });
+    expect(parsed.data.teeth[0].caries?.[0].centroid).toEqual([15, 34]);
+  });
 });
