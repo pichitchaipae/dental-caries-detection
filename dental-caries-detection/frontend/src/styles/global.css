@@ -1,20 +1,49 @@
 @import 'tailwindcss';
 
 /* Brand tokens as Tailwind v4 theme variables, so e.g. `bg-brand-600` and
-   `text-brand-600` are generated utility classes. Values chosen to match
-   the design reference (dental-caries-ai-mockup) while staying close to
-   Tailwind's stock blue/slate scale for maintainability. */
+   `text-brand-600` are generated utility classes. The brand scale is a clinical
+   teal-blue; the full 50-900 range is defined so every shade used in the
+   components (e.g. `brand-400`, `brand-500`) actually resolves. */
 @theme {
+  --font-sans:
+    'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+
   --color-brand-50: #eff6ff;
   --color-brand-100: #dbeafe;
+  --color-brand-200: #bfdbfe;
+  --color-brand-300: #93c5fd;
+  --color-brand-400: #60a5fa;
+  --color-brand-500: #3b82f6;
   --color-brand-600: #2563eb;
   --color-brand-700: #1d4ed8;
+  --color-brand-800: #1e40af;
+  --color-brand-900: #1e3a8a;
+
   --color-danger-50: #fef2f2;
+  --color-danger-100: #fee2e2;
+  --color-danger-200: #fecaca;
   --color-danger-600: #dc2626;
+  --color-danger-700: #b91c1c;
+
   --color-success-500: #22c55e;
   --color-warning-500: #f59e0b;
+
+  --shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.04), 0 4px 16px -4px rgb(15 23 42 / 0.06);
 }
 
 body {
-  @apply bg-slate-50 text-slate-900;
+  @apply bg-slate-50 font-sans text-slate-900 antialiased;
+  background-image: radial-gradient(
+    60rem 30rem at 50% -10rem,
+    rgb(219 234 254 / 0.6),
+    transparent 70%
+  );
+  background-repeat: no-repeat;
+}
+
+/* Consistent, visible keyboard focus across buttons, inputs and the
+   drop zone (role="button" div). */
+:focus-visible {
+  @apply outline-2 outline-offset-2 outline-brand-500;
 }

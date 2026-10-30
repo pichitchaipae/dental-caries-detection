@@ -88,26 +88,55 @@ export function AnalysisView() {
   const selectedTooth = viewModel?.teeth.find((tooth) => tooth.id === selectedToothId) ?? null;
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-6 sm:gap-8">
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Left: Input Workspace */}
-        <section className="rounded-xl border border-slate-200 bg-white p-6">
-          <h2 className="text-base font-semibold text-slate-900">Input Workspace</h2>
-          <p className="mb-4 text-sm text-slate-500">Upload a panoramic X-ray to begin analysis.</p>
+        <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-card sm:p-6">
+          <div className="mb-5 flex items-start gap-3">
+            <span
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600 ring-1 ring-inset ring-brand-100"
+              aria-hidden="true"
+            >
+              <svg
+                className="h-5 w-5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.75"
+              >
+                <path
+                  d="M4 16l4.6-4.6a1.5 1.5 0 0 1 2.1 0L16 16m-2-2 1.6-1.6a1.5 1.5 0 0 1 2.1 0L20 14M6 20h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2Z"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </span>
+            <div>
+              <h2 className="text-base font-semibold tracking-tight text-slate-900">
+                Input Workspace
+              </h2>
+              <p className="text-sm text-slate-500">Upload a panoramic X-ray to begin analysis.</p>
+            </div>
+          </div>
 
           {preview ? (
             <div className="flex flex-col gap-4">
-              <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-900">
+              <div className="overflow-hidden rounded-xl bg-slate-950 ring-1 ring-slate-900/10">
                 <img
                   src={preview.url}
                   alt="Selected OPG preview"
                   className="max-h-64 w-full object-contain"
                 />
               </div>
-              <p className="truncate text-sm text-slate-600">{preview.name}</p>
+              <p className="truncate rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600 ring-1 ring-inset ring-slate-200">
+                {preview.name}
+              </p>
 
               {submitError && (
-                <p role="alert" className="text-sm font-medium text-danger-600">
+                <p
+                  role="alert"
+                  className="rounded-lg bg-danger-50 px-3 py-2 text-sm font-medium text-danger-600 ring-1 ring-inset ring-danger-200"
+                >
                   {submitError}
                 </p>
               )}
@@ -116,7 +145,7 @@ export function AnalysisView() {
                 <button
                   type="button"
                   onClick={handleSubmit}
-                  className="rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700"
+                  className="rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-brand-600/30 transition hover:bg-brand-700 hover:shadow-md active:scale-[0.99]"
                 >
                   Run AI Analysis
                 </button>
@@ -125,7 +154,7 @@ export function AnalysisView() {
                 <button
                   type="button"
                   disabled
-                  className="cursor-not-allowed rounded-lg bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-400"
+                  className="cursor-not-allowed rounded-lg bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-400 ring-1 ring-inset ring-slate-200"
                 >
                   Analyzing…
                 </button>
@@ -134,7 +163,7 @@ export function AnalysisView() {
                 <button
                   type="button"
                   onClick={handleStartOver}
-                  className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                  className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-400 hover:bg-slate-50"
                 >
                   Start over
                 </button>
@@ -146,12 +175,36 @@ export function AnalysisView() {
         </section>
 
         {/* Right: Analysis Results */}
-        <section className="rounded-xl border border-slate-200 bg-white p-6">
-          <h2 className="text-base font-semibold text-slate-900">Analysis Results</h2>
-          <p className="mb-4 text-sm text-slate-500">AI detected findings and confidence scores.</p>
+        <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-card sm:p-6">
+          <div className="mb-5 flex items-start gap-3">
+            <span
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600 ring-1 ring-inset ring-brand-100"
+              aria-hidden="true"
+            >
+              <svg
+                className="h-5 w-5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.75"
+              >
+                <path
+                  d="M9.5 3.5 11 6l2.5-1.5L15 7l2.5.5L17 10l2 1.5-2 1.5.5 2.5-2.5.5L13.5 18 11 16.5 8.5 18 8 15.5 5.5 15 6 12.5 4 11l2-1.5L5.5 7 8 6.5 9.5 3.5Z"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </span>
+            <div>
+              <h2 className="text-base font-semibold tracking-tight text-slate-900">
+                Analysis Results
+              </h2>
+              <p className="text-sm text-slate-500">AI detected findings and confidence scores.</p>
+            </div>
+          </div>
 
           {state.phase === 'empty' || state.phase === 'selected' ? (
-            <div className="flex aspect-video items-center justify-center rounded-lg bg-slate-900 text-slate-400">
+            <div className="flex aspect-video items-center justify-center rounded-xl bg-linear-to-br from-slate-900 to-slate-800 text-slate-400 ring-1 ring-slate-900/10">
               <div className="flex flex-col items-center gap-2 text-sm">
                 <svg
                   className="h-8 w-8"
@@ -171,10 +224,10 @@ export function AnalysisView() {
             </div>
           ) : isBusy ? (
             <div
-              className="flex aspect-video flex-col items-center justify-center gap-3 rounded-lg bg-slate-900 text-slate-300"
+              className="flex aspect-video flex-col items-center justify-center gap-3 rounded-xl bg-linear-to-br from-slate-900 to-slate-800 text-slate-300 ring-1 ring-slate-900/10"
               role="status"
             >
-              <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-600 border-t-brand-500" />
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-700 border-t-brand-400" />
               <p className="max-w-xs px-4 text-center text-sm">
                 Analyzing radiograph — this can take 30 seconds or more.
               </p>
@@ -189,7 +242,7 @@ export function AnalysisView() {
             </div>
           ) : state.phase === 'fail' ? (
             <div
-              className="flex aspect-video flex-col items-center justify-center gap-3 rounded-lg bg-danger-50 px-6 text-center"
+              className="flex aspect-video flex-col items-center justify-center gap-3 rounded-xl bg-danger-50 px-6 text-center ring-1 ring-inset ring-danger-200"
               role="alert"
             >
               <p className="font-medium text-danger-600">{state.failMessage}</p>

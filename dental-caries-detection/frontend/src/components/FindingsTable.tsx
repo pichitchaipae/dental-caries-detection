@@ -54,24 +54,24 @@ export function FindingsTable({ teeth, selectedToothId, onSelectTooth }: Finding
   };
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+    <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-card">
       <table className="w-full text-sm">
-        <caption className="px-6 pb-2 pt-4 text-left font-semibold text-slate-900">
+        <caption className="px-6 pb-3 pt-5 text-left text-base font-semibold tracking-tight text-slate-900">
           All detected teeth
         </caption>
         <thead>
-          <tr className="text-left text-slate-500">
+          <tr className="bg-slate-50/80 text-left text-xs uppercase tracking-wide text-slate-500">
             <th
               aria-sort={ariaSortFor('fdi', sort)}
-              className="cursor-pointer select-none border-b border-slate-200 px-6 py-2 font-medium hover:text-slate-700"
+              className="cursor-pointer select-none border-y border-slate-200 px-6 py-2.5 font-medium transition-colors hover:text-slate-800"
               onClick={() => handleHeaderClick('fdi')}
             >
               FDI{sortIndicator('fdi')}
             </th>
-            <th className="border-b border-slate-200 px-6 py-2 font-medium">Confidence</th>
+            <th className="border-y border-slate-200 px-6 py-2.5 font-medium">Confidence</th>
             <th
               aria-sort={ariaSortFor('caries', sort)}
-              className="cursor-pointer select-none border-b border-slate-200 px-6 py-2 font-medium hover:text-slate-700"
+              className="cursor-pointer select-none border-y border-slate-200 px-6 py-2.5 font-medium transition-colors hover:text-slate-800"
               onClick={() => handleHeaderClick('caries')}
             >
               Caries surfaces{sortIndicator('caries')}
@@ -81,7 +81,7 @@ export function FindingsTable({ teeth, selectedToothId, onSelectTooth }: Finding
         <tbody>
           {sortedTeeth.length === 0 ? (
             <tr>
-              <td colSpan={3} className="px-6 py-4 text-center text-slate-500">
+              <td colSpan={3} className="px-6 py-8 text-center text-slate-500">
                 No teeth detected in this image.
               </td>
             </tr>
@@ -99,25 +99,29 @@ export function FindingsTable({ teeth, selectedToothId, onSelectTooth }: Finding
                   onClick={() => onSelectTooth(tooth.id)}
                   className={
                     'cursor-pointer transition-colors ' +
-                    (isSelected ? 'bg-brand-50' : 'hover:bg-slate-50')
+                    (isSelected
+                      ? 'bg-brand-50 shadow-[inset_3px_0_0_0] shadow-brand-600'
+                      : 'hover:bg-slate-50')
                   }
                 >
-                  <td className="border-b border-slate-100 px-6 py-2.5">
-                    <span className="flex items-center gap-2">
+                  <td className="border-b border-slate-100 px-6 py-3">
+                    <span className="flex items-center gap-2.5 font-medium text-slate-800">
                       <span
-                        className="h-2 w-2 shrink-0 rounded-full"
+                        className="h-2.5 w-2.5 shrink-0 rounded-full ring-2 ring-white shadow"
                         style={{ backgroundColor: tooth.colorKey }}
                         aria-hidden="true"
                       />
                       {tooth.fdi}
                     </span>
                   </td>
-                  <td className="border-b border-slate-100 px-6 py-2.5">
+                  <td className="border-b border-slate-100 px-6 py-3">
                     {(tooth.confidence * 100).toFixed(0)}%
                   </td>
-                  <td className="border-b border-slate-100 px-6 py-2.5">
+                  <td className="border-b border-slate-100 px-6 py-3">
                     {tooth.hasCaries ? (
-                      <span className="font-medium text-danger-600">{cariesSurfaceNames}</span>
+                      <span className="inline-flex rounded-full bg-danger-50 px-2.5 py-0.5 text-xs font-medium text-danger-600 ring-1 ring-inset ring-danger-200">
+                        {cariesSurfaceNames}
+                      </span>
                     ) : (
                       '—'
                     )}
