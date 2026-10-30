@@ -1,4 +1,9 @@
+import { useState } from 'react';
 import { AnalysisView } from './features/analysis/AnalysisView';
+import { Footer } from './components/Footer';
+import { InfoModal } from './components/InfoModal';
+import { SiteSectionContent } from './components/SiteSections';
+import { SECTION_TITLES, type SiteSectionId } from './data/siteContent';
 
 // Single-column layout, no router (project-structure.md Section 4.2: the app
 // holds no long-lived state; a refresh fully resets it). The top bar's nav
@@ -7,6 +12,7 @@ import { AnalysisView } from './features/analysis/AnalysisView';
 // nav item that goes nowhere is worse UX than no nav item. See
 // z-claude-md/pond-task.md for the full redesign rationale.
 function App() {
+  const [activeSection, setActiveSection] = useState<SiteSectionId | null>(null);
   const isMocking =
     import.meta.env.DEV && (import.meta.env.VITE_API_MOCKING ?? 'enabled') === 'enabled';
 
@@ -61,12 +67,13 @@ function App() {
         <AnalysisView />
       </main>
 
-      <footer className="border-t border-slate-200/70 bg-white/60 px-4 py-4 text-xs text-slate-400 sm:px-6">
-        <div className="mx-auto flex max-w-6xl justify-between">
-          <span>v0.1.0</span>
-          <span>Port 3000</span>
-        </div>
-      </footer>
+      <Footer onOpenSection={setActiveSection} />
+
+      {activeSection && (
+        <InfoModal title={SECTION_TITLES[activeSection]} onClose={() => setActiveSection(null)}>
+          <SiteSectionContent section={activeSection} />
+        </InfoModal>
+      )}
     </div>
   );
 }
