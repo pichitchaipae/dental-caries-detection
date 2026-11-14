@@ -1,15 +1,17 @@
 import { useCallback, useState } from 'react';
 
+// `masks` = whole-tooth masks; `caries` = per-lesion masks (API v2). The old
+// `boxes` layer is gone — bounding boxes are no longer drawn.
 export interface LayerVisibility {
-  boxes: boolean;
   masks: boolean;
+  caries: boolean;
   axes: boolean;
   labels: boolean;
 }
 
 export const defaultLayerVisibility: LayerVisibility = {
-  boxes: true,
   masks: true,
+  caries: true,
   axes: false,
   labels: true,
 };
@@ -30,7 +32,7 @@ export function useLayerState(): {
   }, []);
 
   const setAll = useCallback((visible: boolean) => {
-    setLayers({ boxes: visible, masks: visible, axes: visible, labels: visible });
+    setLayers({ masks: visible, caries: visible, axes: visible, labels: visible });
   }, []);
 
   return { layers, toggle, setAll };

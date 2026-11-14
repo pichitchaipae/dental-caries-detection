@@ -68,7 +68,6 @@ export function FindingsTable({ teeth, selectedToothId, onSelectTooth }: Finding
             >
               FDI{sortIndicator('fdi')}
             </th>
-            <th className="border-y border-slate-200 px-6 py-2.5 font-medium">Confidence</th>
             <th
               aria-sort={ariaSortFor('caries', sort)}
               className="cursor-pointer select-none border-y border-slate-200 px-6 py-2.5 font-medium transition-colors hover:text-slate-800"
@@ -81,7 +80,7 @@ export function FindingsTable({ teeth, selectedToothId, onSelectTooth }: Finding
         <tbody>
           {sortedTeeth.length === 0 ? (
             <tr>
-              <td colSpan={3} className="px-6 py-8 text-center text-slate-500">
+              <td colSpan={2} className="px-6 py-8 text-center text-slate-500">
                 No teeth detected in this image.
               </td>
             </tr>
@@ -113,9 +112,6 @@ export function FindingsTable({ teeth, selectedToothId, onSelectTooth }: Finding
                       />
                       {tooth.fdi}
                     </span>
-                  </td>
-                  <td className="border-b border-slate-100 px-6 py-3">
-                    {(tooth.confidence * 100).toFixed(0)}%
                   </td>
                   <td className="border-b border-slate-100 px-6 py-3">
                     {tooth.hasCaries ? (

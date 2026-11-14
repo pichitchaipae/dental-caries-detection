@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, type RefObject } from 'react';
 import type { ToothViewModel } from '../../features/analysis/analysisTypes';
 import type { LayerVisibility } from './layerState';
-import { drawAxes, drawBoundingBox, drawLabel, drawMask, drawSelectionHalo } from './overlays';
+import { drawAxes, drawCariesMasks, drawLabel, drawMask, drawSelectionHalo } from './overlays';
 import { decodeMask } from '../../lib/rle';
 
 interface Viewport {
@@ -163,21 +163,22 @@ export function useCanvasRenderer({
 
       if (image) {
         // Filter applies only to the source image, never to overlays: reset
-        // before drawing overlays so caries-red / sound-blue fills stay
+        // before drawing overlays so the tooth and lesion fills stay
         // visually consistent regardless of brightness/contrast.
         ctx.filter = `brightness(${imageFilter.brightness}%) contrast(${imageFilter.contrast}%)`;
         ctx.drawImage(image, 0, 0, imageSize.width, imageSize.height);
         ctx.filter = 'none';
       }
 
-      // Layered draw loop per project-structure.md 10.1: boxes, then masks,
-      // then axes, then labels — one pass per layer, not per tooth — with
-      // the selected tooth's halo drawn last, on top of everything.
-      if (layers.boxes) {
-        for (const tooth of teeth) drawBoundingBox(ctx, tooth);
-      }
+      // Layered draw loop per project-structure.md 10.1: tooth masks, then
+      // caries masks (on top of the tooth fill), then axes, then labels —
+      // one pass per layer, not per tooth — with the selected tooth's halo
+      // drawn last, on top of everything. No bounding boxes (API v2).
       if (layers.masks) {
         for (const tooth of teeth) drawMask(ctx, tooth, imageSize.width, imageSize.height);
+      }
+      if (layers.caries) {
+        for (const tooth of teeth) drawCariesMasks(ctx, tooth);
       }
       if (layers.axes) {
         for (const tooth of teeth) drawAxes(ctx, tooth);
@@ -187,7 +188,7 @@ export function useCanvasRenderer({
       }
       if (selectedToothId !== null) {
         const selected = teeth.find((tooth) => tooth.id === selectedToothId);
-        if (selected) drawSelectionHalo(ctx, selected);
+        if (selected) drawSelectionHalo(ctx, selected, imageSize.width, imageSize.height);
       }
 
       ctx.restore();

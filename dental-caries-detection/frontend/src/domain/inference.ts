@@ -9,11 +9,17 @@ export interface SurfaceFinding {
   method: 'Geometry_Heuristic' | 'RF' | 'XThirds_Fallback' | 'CNN';
 }
 
-// Lesion mask in pano coordinates (API v1.1 additive field).
+export type SurfaceName = SurfaceFinding['name'];
+
+// One predicted lesion in pano coordinates (API v2 draft, docs-md/
+// api-contract-v2-draft.md §2.1). `surface` is null until ML sends it
+// (ML-10). `probability` is the caries detector score, not calibrated.
+// The v1.1 `bbox` / `confidence` fields no longer exist on the wire.
 export interface CariesLesion {
-  bbox: [number, number, number, number];
+  id: number; // unique within its tooth (0..n-1)
+  surface: SurfaceName | null;
+  probability: number;
   mask: { encoding: 'polygon'; data: [number, number][] };
-  confidence: number;
   centroid: [number, number];
 }
 
@@ -32,13 +38,12 @@ export interface MaskData {
 export interface Tooth {
   id: number;
   fdi: number;
-  confidence: number;
-  bbox: [number, number, number, number];
+  bbox: [number, number, number, number]; // tooth bbox only: label anchor + hit-test fallback, never drawn
   mask: MaskData;
   axes: ToothAxes;
   has_caries: boolean;
   surfaces: SurfaceFinding[];
-  caries?: CariesLesion[];
+  caries: CariesLesion[]; // required in v2; [] for a tooth without lesions
 }
 
 export interface InferenceData {
@@ -60,15 +65,20 @@ const surfaceFindingSchema = z.object({
   method: z.enum(['Geometry_Heuristic', 'RF', 'XThirds_Fallback', 'CNN']),
 });
 const cariesLesionSchema = z.object({
-  bbox: z.tuple([z.number(), z.number(), z.number(), z.number()]),
-  mask: z.object({ encoding: z.literal('polygon'), data: z.array(pointSchema).min(3) }),
-  confidence: z.number().min(0).max(1),
+  id: z.number().int().nonnegative(),
+  surface: z.enum(['mesial', 'distal', 'occlusal']).nullable(),
+  probability: z.number().min(0).max(1),
+  // No `.min(3)`: the backend adapter does not validate lesion polygons, and
+  // one degenerate lesion must not fail the whole result. Rendering skips
+  // polygons with fewer than 3 points (overlays.drawCariesMasks).
+  mask: z.object({ encoding: z.literal('polygon'), data: z.array(pointSchema) }),
   centroid: pointSchema,
 });
+// z.object strips unknown keys, so a stray v1 `teeth[].confidence` is dropped
+// at parse time rather than leaking into the view model.
 const toothSchema = z.object({
   id: z.number().int(),
   fdi: z.number().int().min(11).max(48),
-  confidence: z.number().min(0).max(1),
   bbox: z.tuple([z.number(), z.number(), z.number(), z.number()]),
   mask: z.discriminatedUnion('encoding', [
     z.object({ encoding: z.literal('polygon'), data: z.array(pointSchema).min(3) }),
@@ -82,7 +92,7 @@ const toothSchema = z.object({
   }),
   has_caries: z.boolean(),
   surfaces: z.array(surfaceFindingSchema).max(3),
-  caries: z.array(cariesLesionSchema).optional(),
+  caries: z.array(cariesLesionSchema),
 });
 const inferenceDataSchema = z.object({
   meta: z.object({

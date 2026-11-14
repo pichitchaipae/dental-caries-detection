@@ -23,7 +23,7 @@ src/
 │   ├── validation.ts           # FE-4.4: client-side pre-flight mirror (not authoritative)
 │   └── rle.ts                  # FE-4.5: polygon mask decode + point-in-polygon hit test
 ├── fixtures/
-│   └── ml-result.raw.sample.json  # raw ml-service result the backend forwards (see Mocking below)
+│   └── result.sample.json      # API v2 draft `done` response, byte-identical copy of the backend fixture
 ├── mocks/                      # (new, not in project-structure.md's tree — see Mocking below)
 │   ├── handlers.ts             # MSW handlers simulating POST/GET /process
 │   ├── resultFactory.ts        # Generates synthetic teeth sized to the real uploaded image
@@ -55,8 +55,9 @@ in-progress run, since polling stops).
 **View-model layer (FE-5.4):** components never consume the raw
 `InferenceData`/`Tooth` wire types directly. `analysisTypes.toViewModel(data)`
 precomputes `displayLabel` ("FDI 36"), `cariesSummary` ("1 / 5 surfaces"),
-`hasCaries`, and a stable per-tooth `colorKey` used for the bounding-box
-stroke color on canvas and the identity dot in `FindingsTable`/
+`hasCaries`, the per-lesion `caries[]` (API v2: `id`, `surface`, `probability`,
+`mask`, `centroid`) drawn by the Caries Mask layer, and a stable per-tooth
+`colorKey` used for the identity dot in `FindingsTable`/
 `ToothDetailPanel` — so a given tooth reads as the same color everywhere.
 
 **Resilience (Sprint 7, FE-7.2):**
@@ -84,17 +85,16 @@ backend later; only `main.tsx`'s `enableMockingIfNeeded()` call goes away.
   `VITE_API_MOCKING=enabled` (the default). Never active in `vite build`/
   `preview` — the Docker image always expects a real backend.
 - `src/mocks/resultFactory.ts` reads the actual dimensions of whatever image
-  you upload and generates synthetic teeth inside its real bounds, in the raw
-  ml-service shape the real backend returns — one tooth is always flagged with
+  you upload and generates synthetic teeth inside its real bounds, in the API v2
+  draft shape the real backend returns — one tooth is always flagged with
   an occlusal caries surface so the highlighting UI has something to show.
-- `src/fixtures/ml-result.raw.sample.json` is a copy of
-  `backend/src/fixtures/ml-result.raw.sample.json`: the ml-service result that the
-  backend forwards **unchanged** as `data` on `GET /process` (the backend can't be
-  changed, so the frontend adapts to it). `domain/inference.ts` parses this raw
-  shape and `normalizeInference` turns it into the smaller `InferenceData` the UI
-  uses (`meta.image_size` -> `image`; other `meta` fields are dropped). Its
-  `surfaces` list only the caries surfaces of a tooth, so the UI shows a caries
-  count, not "x / 5". Keep the file in sync with the backend copy.
+- `src/fixtures/result.sample.json` is a byte-identical copy of
+  `backend/src/fixtures/result.sample.json`: the API v2 draft `done` response
+  (29 teeth, two predicted lesions) that `GET /process` returns, used by the unit
+  tests via `src/test-utils/v2Fixture.ts`. `domain/inference.ts` parses it directly
+  into `InferenceData`. Its `surfaces` list only the caries surfaces of a tooth, so
+  the UI shows a caries count, not "x / 5". Its `image_base64` is a 1x1 placeholder.
+  Keep the file in sync with the backend copy.
 - The backend answers every rejected upload with a generic `422` (never 413/415)
   and caps uploads at 10 MB, so `lib/validation.ts` pre-flight (type, 10 MB,
   resolution) is the only place that gives specific error messages.

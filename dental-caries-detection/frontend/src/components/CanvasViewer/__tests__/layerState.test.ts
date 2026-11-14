@@ -6,6 +6,16 @@ describe('useLayerState', () => {
   it('starts at the documented defaults', () => {
     const { result } = renderHook(() => useLayerState());
     expect(result.current.layers).toEqual(defaultLayerVisibility);
+    expect(defaultLayerVisibility).toEqual({
+      masks: true,
+      caries: true,
+      axes: false,
+      labels: true,
+    });
+  });
+
+  it('has no bounding-box layer any more', () => {
+    expect(Object.keys(defaultLayerVisibility)).not.toContain('boxes');
   });
 
   it('toggle flips exactly one layer', () => {
@@ -14,8 +24,19 @@ describe('useLayerState', () => {
     act(() => result.current.toggle('axes'));
     expect(result.current.layers).toEqual({ ...defaultLayerVisibility, axes: true });
 
-    act(() => result.current.toggle('boxes'));
-    expect(result.current.layers).toEqual({ ...defaultLayerVisibility, axes: true, boxes: false });
+    act(() => result.current.toggle('masks'));
+    expect(result.current.layers).toEqual({ ...defaultLayerVisibility, axes: true, masks: false });
+  });
+
+  it('toggling caries leaves the tooth masks layer untouched, and back again', () => {
+    const { result } = renderHook(() => useLayerState());
+
+    act(() => result.current.toggle('caries'));
+    expect(result.current.layers).toEqual({ ...defaultLayerVisibility, caries: false });
+    expect(result.current.layers.masks).toBe(true);
+
+    act(() => result.current.toggle('caries'));
+    expect(result.current.layers).toEqual(defaultLayerVisibility);
   });
 
   it('setAll sets every layer to the same visibility', () => {
@@ -23,13 +44,18 @@ describe('useLayerState', () => {
 
     act(() => result.current.setAll(false));
     expect(result.current.layers).toEqual({
-      boxes: false,
       masks: false,
+      caries: false,
       axes: false,
       labels: false,
     });
 
     act(() => result.current.setAll(true));
-    expect(result.current.layers).toEqual({ boxes: true, masks: true, axes: true, labels: true });
+    expect(result.current.layers).toEqual({
+      masks: true,
+      caries: true,
+      axes: true,
+      labels: true,
+    });
   });
 });

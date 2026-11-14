@@ -12,8 +12,8 @@ interface CanvasViewerProps {
 }
 
 const LAYER_LABELS: Record<LayerKey, string> = {
-  boxes: 'Boxes',
   masks: 'Masks',
+  caries: 'Caries Mask',
   axes: 'Axes',
   labels: 'Labels',
 };

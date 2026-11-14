@@ -1,4 +1,10 @@
-import type { InferenceData, MaskData, SurfaceFinding, ToothAxes } from '../../domain/inference';
+import type {
+  CariesLesion,
+  InferenceData,
+  MaskData,
+  SurfaceFinding,
+  ToothAxes,
+} from '../../domain/inference';
 
 // `file`/`previewUrl` for the selected image live in AnalysisView's separate
 // `preview` state (not here), since the left "Input Workspace" panel needs to
@@ -18,7 +24,8 @@ export type WorkflowState =
 // recompute the same derived values. Pure, no React imports.
 
 // Colorblind-considerate, mutually distinct from the semantic mask colors
-// (caries-red / sound-blue in overlays.ts) and the orange selection halo —
+// (tooth caries-red / sound-blue and the lesion amber in overlays.ts) and the
+// orange selection halo —
 // this palette identifies *which* tooth, not its clinical status.
 const IDENTITY_COLOR_PALETTE = [
   '#2563eb', // blue
@@ -33,11 +40,13 @@ export interface ToothViewModel {
   id: number;
   fdi: number;
   displayLabel: string; // "FDI 36"
-  confidence: number;
+  // Label anchor and click hit-test fallback only. API v2 dropped the tooth
+  // detection confidence, and the box itself is no longer drawn.
   bbox: [number, number, number, number];
   mask: MaskData;
   axes: ToothAxes;
   surfaces: SurfaceFinding[];
+  caries: CariesLesion[]; // per-lesion masks drawn by the Caries Mask layer
   cariesCount: number;
   cariesSummary: string; // "2 caries surfaces"
   hasCaries: boolean;
@@ -63,11 +72,11 @@ function toToothViewModel(tooth: InferenceData['teeth'][number]): ToothViewModel
     id: tooth.id,
     fdi: tooth.fdi,
     displayLabel: `FDI ${tooth.fdi}`,
-    confidence: tooth.confidence,
     bbox: tooth.bbox,
     mask: tooth.mask,
     axes: tooth.axes,
     surfaces: tooth.surfaces,
+    caries: tooth.caries,
     cariesCount,
     cariesSummary: `${cariesCount} caries ${cariesCount === 1 ? 'surface' : 'surfaces'}`,
     hasCaries: cariesCount > 0,

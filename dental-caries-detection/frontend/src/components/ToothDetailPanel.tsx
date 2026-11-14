@@ -1,5 +1,9 @@
 import type { ToothViewModel } from '../features/analysis/analysisTypes';
 
+function formatProbability(probability: number | null): string {
+  return probability === null ? '—' : `${(probability * 100).toFixed(0)}%`;
+}
+
 interface ToothDetailPanelProps {
   tooth: ToothViewModel | null;
   onClose: () => void;
@@ -45,7 +49,7 @@ export function ToothDetailPanel({ tooth, onClose }: ToothDetailPanelProps) {
         </button>
       </div>
       <p className="mb-4 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600 ring-1 ring-inset ring-slate-200">
-        Detection confidence: {(tooth.confidence * 100).toFixed(0)}% · {tooth.cariesSummary}
+        {tooth.cariesSummary}
       </p>
       {tooth.surfaces.length === 0 ? (
         <p className="text-sm text-slate-500">No caries surfaces detected on this tooth.</p>
@@ -69,9 +73,40 @@ export function ToothDetailPanel({ tooth, onClose }: ToothDetailPanelProps) {
                 <td className="border-b border-slate-100 px-2 py-2 capitalize">{surface.name}</td>
                 <td className="border-b border-slate-100 px-2 py-2 capitalize">{surface.label}</td>
                 <td className="border-b border-slate-100 px-2 py-2">
-                  {surface.probability === null
-                    ? '—'
-                    : `${(surface.probability * 100).toFixed(0)}%`}
+                  {formatProbability(surface.probability)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {tooth.caries.length > 0 && (
+        <table className="mt-5 w-full text-sm">
+          <caption className="pb-2 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+            Caries lesions
+          </caption>
+          <thead>
+            <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
+              <th className="border-b border-slate-200 px-2 py-2 font-medium">Lesion</th>
+              <th className="border-b border-slate-200 px-2 py-2 font-medium">Surface</th>
+              <th className="border-b border-slate-200 px-2 py-2 font-medium">Probability</th>
+            </tr>
+          </thead>
+          <tbody>
+            {tooth.caries.map((lesion) => (
+              <tr key={lesion.id}>
+                <td className="border-b border-slate-100 px-2 py-2">#{lesion.id + 1}</td>
+                {/* surface is null until ML-10 ships per-lesion surfaces */}
+                <td
+                  className={
+                    'border-b border-slate-100 px-2 py-2 ' +
+                    (lesion.surface === null ? 'text-slate-400' : 'capitalize')
+                  }
+                >
+                  {lesion.surface ?? 'Unspecified'}
+                </td>
+                <td className="border-b border-slate-100 px-2 py-2">
+                  {formatProbability(lesion.probability)}
                 </td>
               </tr>
             ))}

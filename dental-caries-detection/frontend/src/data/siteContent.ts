@@ -46,17 +46,17 @@ export const HOW_TO_USE_STEPS: readonly HowToUseStep[] = [
   {
     title: 'Read the image overlays',
     description:
-      'Each detected tooth gets a coloured bounding box and its FDI number. Red-filled surfaces are predicted caries; blue-tinted surfaces are predicted sound. Use the Boxes, Masks, Axes and Labels toggles to show or hide layers.',
+      'Each detected tooth is shaded and labelled with its FDI number. Red-tinted teeth have predicted caries; blue-tinted teeth are predicted sound. Yellow areas mark the predicted caries lesions themselves. Use the Masks, Caries Mask, Axes and Labels toggles to show or hide layers.',
   },
   {
     title: 'Inspect individual teeth',
     description:
-      'Click a tooth on the image or a row in the findings table. The detail panel lists each surface with its finding and probability. Scroll to zoom, drag to pan, and use Fit or 1:1 to reset the view.',
+      'Click a tooth on the image or a row in the findings table. The detail panel lists each surface and each caries lesion with its probability. Scroll to zoom, drag to pan, and use Fit or 1:1 to reset the view.',
   },
   {
     title: 'Review the findings table',
     description:
-      'All detected teeth are listed with detection confidence and any caries surfaces. Click the FDI or Caries surfaces header to sort. Press Start over to analyse another image.',
+      'All detected teeth are listed with any caries surfaces. Click the FDI or Caries surfaces header to sort. Press Start over to analyse another image.',
   },
 ] as const;
 
