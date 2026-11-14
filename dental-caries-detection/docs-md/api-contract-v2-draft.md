@@ -123,3 +123,17 @@ teeth[]
 | 13 | ใช้ภาษาไปในแนวทางเดียวกันให้เป็นภาพรวม | ชื่อแนวทาง/ศัพท์ในสไลด์ เล่ม และเว็บให้ตรงกัน |
 | 14 | นำเสนอสถิติด้วยวิธีที่เหมาะสมมากขึ้น | เลือกตัวชี้วัดหลักและวิธีแสดงผลตาม Evaluation Matrix |
 | Demo | Bounding box ซ้ำกับ mask, สีกรอบไม่ผ่าน UX, confidence เกิน, ต้องมี mask รอยผุ | ทำใน Sprint นี้ (§2) |
+
+
+## Backend implementation update (2026-11-14)
+
+Progress report: [Backend Semester 2 Sprint 1 — 2026-11-14](be-sem2-sprint1-progress-2026-11-14.md).
+
+Implemented locally; still a draft, not frozen or committed:
+- Adapter emits lesion `id`, nullable `surface`, and `probability`; omits tooth confidence and lesion bbox.
+- Preserves ML IDs; generates unused integer IDs if missing. Duplicate ML IDs are rejected.
+- Surface absent from the tooth aggregate is logged via request logger; result is retained.
+- Missing caries defaults to `[]`; missing/null surface defaults to `null` while ML-10 is pending.
+- Raw/public fixtures now use recorded case 10 ML predictions (29 teeth, two lesions), with per-lesion surfaces from the matching research output. See backend/src/fixtures/README.md for source hashes and v2 adaptations.
+- Tests cover legacy results, sound teeth, multiple lesions, IDs, surface mismatch, and fixture parity.
+- Frontend schema migration and coordinated v2 freeze/PR remain pending; current FE still expects v1 fields.

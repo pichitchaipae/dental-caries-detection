@@ -8,6 +8,8 @@
 >
 > **Evidence vocabulary:** **Implemented** means directly visible in executable source. **Recorded** means supported by a saved artifact or an existing report, with its scope stated. **Rationale** means an engineering interpretation of the design unless a source states the decision. **Proposed** means work that is not implemented. Nothing here establishes clinical approval or independent-patient performance.
 
+> **Backend draft update (2026-11-14):** Backend now implements the [v2 draft](api-contract-v2-draft.md): lesion `id`, nullable `surface`, and `probability`, omitting tooth confidence and lesion bbox. Missing ML IDs are generated and missing surfaces become null. Surface mismatches log warnings while retaining results. Fixtures use recorded case 10 ML lesion polygons; source hashes and v2 adaptations are documented in backend/src/fixtures/README.md. Frontend migration and freeze remain pending; v1 descriptions and fingerprints below describe the older snapshot.
+
 ## Contents
 
 1. [Executive summary and global technology stack](#1-executive-summary-and-global-technology-stack)

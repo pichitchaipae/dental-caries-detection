@@ -82,7 +82,7 @@ describe('/process', () => {
       expect(res.json()).toEqual({ status: 'fail', fail_message: "TypeError('boom')" });
     });
 
-    it('adapts the ml-service result to API v1 when done', async () => {
+    it('adapts the ml-service result to API v2 draft when done', async () => {
       const id = 3;
       writeFileSync(join(sharedDir, `input-${id}.jpg`), Buffer.from('img'));
       writeFileSync(join(sharedDir, `result-${id}.json`), rawFixture);

@@ -8,6 +8,8 @@ const rawSurfaceSchema = z.object({
   method: z.string().optional(),
 });
 const rawCariesSchema = z.object({
+  id: z.number().int().nonnegative().optional(),
+  surface: z.enum(['mesial', 'distal', 'occlusal']).nullish(),
   bbox: z.tuple([z.number(), z.number(), z.number(), z.number()]),
   mask: z.object({
     encoding: z.literal('polygon'),
@@ -45,9 +47,7 @@ const rawResultSchema = z.object({
       width: z.number().int().positive(),
       height: z.number().int().positive(),
     }),
-    models: z
-      .object({ detector: z.string(), classifier: z.string() })
-      .optional(),
+    models: z.object({ detector: z.string(), classifier: z.string() }).optional(),
     timings_ms: z.record(z.string(), z.number()).optional(),
   }),
   teeth: z.array(rawToothSchema),
@@ -69,7 +69,6 @@ export interface ApiInferenceData {
   teeth: Array<{
     id: number;
     fdi: number;
-    confidence: number;
     bbox: [number, number, number, number];
     mask: { encoding: 'polygon'; data: [number, number][] };
     axes: {
@@ -86,17 +85,16 @@ export interface ApiInferenceData {
       method: 'Geometry_Heuristic' | 'RF' | 'XThirds_Fallback' | 'CNN';
     }>;
     caries: Array<{
-      bbox: [number, number, number, number];
+      id: number;
+      surface: 'mesial' | 'distal' | 'occlusal' | null;
       mask: { encoding: 'polygon'; data: [number, number][] };
-      confidence: number;
+      probability: number;
       centroid: [number, number];
     }>;
   }>;
 }
 
-function fallbackMask(
-  bbox: [number, number, number, number]
-): [number, number][] {
+function fallbackMask(bbox: [number, number, number, number]): [number, number][] {
   const [x, y, width, height] = bbox;
   return [
     [x, y],
@@ -120,7 +118,14 @@ function normalizeProcessedAt(value: string): string {
   return date.toISOString();
 }
 
-export function adaptInferenceResult(raw: unknown): ApiInferenceData {
+export interface AdapterLogger {
+  warn(
+    context: { job_id: number; tooth_id: number; lesion_id: number; surface: string },
+    message: string
+  ): void;
+}
+
+export function adaptInferenceResult(raw: unknown, logger?: AdapterLogger): ApiInferenceData {
   const parsed = rawResultSchema.parse(raw);
   const teeth = parsed.teeth.map((tooth, index) => {
     const surfaces = new Map<
@@ -147,12 +152,39 @@ export function adaptInferenceResult(raw: unknown): ApiInferenceData {
       }
     }
 
-    const mask =
-      tooth.mask.data.length >= 3 ? tooth.mask.data : fallbackMask(tooth.bbox);
+    // Preserve supplied IDs, allocating unused IDs for older ML results.
+    const usedIds = new Set<number>();
+    for (const lesion of tooth.caries ?? []) {
+      if (lesion.id !== undefined) {
+        if (usedIds.has(lesion.id)) throw new Error(`Duplicate lesion id: ${lesion.id}`);
+        usedIds.add(lesion.id);
+      }
+    }
+    let nextId = 0;
+    const caries = (tooth.caries ?? []).map((lesion) => {
+      while (usedIds.has(nextId)) nextId++;
+      const id = lesion.id ?? nextId++;
+      usedIds.add(id);
+      const surface = lesion.surface ?? null;
+      if (surface !== null && !surfaces.has(surface)) {
+        logger?.warn(
+          { job_id: parsed.meta.job_id, tooth_id: index, lesion_id: id, surface },
+          'Lesion surface is absent from tooth surfaces'
+        );
+      }
+      return {
+        id,
+        surface,
+        probability: lesion.confidence,
+        mask: lesion.mask,
+        centroid: lesion.centroid,
+      };
+    });
+
+    const mask = tooth.mask.data.length >= 3 ? tooth.mask.data : fallbackMask(tooth.bbox);
     return {
       id: index,
       fdi: tooth.fdi,
-      confidence: tooth.confidence,
       bbox: tooth.bbox,
       mask: { encoding: 'polygon' as const, data: mask },
       axes: {
@@ -163,7 +195,7 @@ export function adaptInferenceResult(raw: unknown): ApiInferenceData {
       },
       has_caries: surfaces.size > 0,
       surfaces: [...surfaces.values()],
-      caries: tooth.caries ?? [],
+      caries,
     };
   });
 

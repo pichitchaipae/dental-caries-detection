@@ -11,9 +11,9 @@ import { dispatchInference } from '../services/mlClient.js';
 import { adaptInferenceResult } from '../services/resultAdapter.js';
 import { failJob, getLatestJob, startJob } from '../db/jobs.js';
 
-// Wire format is frozen by docs-md/api-contract-v1.md (v1.1): POST errors are
+// Result data follows docs-md/api-contract-v2-draft.md; POST errors are
 // always 422 + status/fail_message, GET always answers one of
-// idle/processing/fail/done, and `data` is the validated API v1 adapter output.
+// idle/processing/fail/done, and `data` is the validated API v2 draft adapter output.
 
 export async function registerProcessRoutes(app: FastifyInstance) {
   app.post('/process', async (req: FastifyRequest, reply: FastifyReply) => {
@@ -80,7 +80,7 @@ export async function registerProcessRoutes(app: FastifyInstance) {
       case 'fail':
         return reply.send({ status: 'fail', fail_message: job.failMessage || 'Inference failed.' });
 
-      case 'done':
+      case 'done': {
         let resultJson: unknown;
         try {
           resultJson = await readResultJson(resolveResultPath(job.id, job.resultPath));
@@ -91,7 +91,7 @@ export async function registerProcessRoutes(app: FastifyInstance) {
 
         let data;
         try {
-          data = adaptInferenceResult(resultJson);
+          data = adaptInferenceResult(resultJson, req.log);
         } catch (err) {
           req.log.error(err, `GET /process: invalid result for job ${job.id}`);
           return reply.send({ status: 'fail', fail_message: 'Invalid inference result.' });
@@ -108,6 +108,7 @@ export async function registerProcessRoutes(app: FastifyInstance) {
           req.log.error(err, `GET /process: input image for job ${job.id} unreadable`);
           return reply.send({ status: 'fail', fail_message: 'Result file unavailable.' });
         }
+      }
     }
   });
 }
