@@ -18,6 +18,11 @@ export function ToothDetailPanel({ tooth, onClose }: ToothDetailPanelProps) {
     );
   }
 
+  // ML-10 (per-lesion surface) has not shipped yet, so lesion.surface is null for
+  // every lesion. Hide the Surface column in that case instead of showing a column
+  // full of "Unspecified"; it reappears as soon as any lesion carries a surface.
+  const showLesionSurface = tooth.caries.some((lesion) => lesion.surface !== null);
+
   return (
     <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-card sm:p-6">
       <div className="mb-3 flex items-center justify-between gap-2">
@@ -88,7 +93,9 @@ export function ToothDetailPanel({ tooth, onClose }: ToothDetailPanelProps) {
           <thead>
             <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
               <th className="border-b border-slate-200 px-2 py-2 font-medium">Lesion</th>
-              <th className="border-b border-slate-200 px-2 py-2 font-medium">Surface</th>
+              {showLesionSurface && (
+                <th className="border-b border-slate-200 px-2 py-2 font-medium">Surface</th>
+              )}
               <th className="border-b border-slate-200 px-2 py-2 font-medium">Probability</th>
             </tr>
           </thead>
@@ -96,15 +103,16 @@ export function ToothDetailPanel({ tooth, onClose }: ToothDetailPanelProps) {
             {tooth.caries.map((lesion) => (
               <tr key={lesion.id}>
                 <td className="border-b border-slate-100 px-2 py-2">#{lesion.id + 1}</td>
-                {/* surface is null until ML-10 ships per-lesion surfaces */}
-                <td
-                  className={
-                    'border-b border-slate-100 px-2 py-2 ' +
-                    (lesion.surface === null ? 'text-slate-400' : 'capitalize')
-                  }
-                >
-                  {lesion.surface ?? 'Unspecified'}
-                </td>
+                {showLesionSurface && (
+                  <td
+                    className={
+                      'border-b border-slate-100 px-2 py-2 ' +
+                      (lesion.surface === null ? 'text-slate-400' : 'capitalize')
+                    }
+                  >
+                    {lesion.surface ?? 'Unspecified'}
+                  </td>
+                )}
                 <td className="border-b border-slate-100 px-2 py-2">
                   {formatProbability(lesion.probability)}
                 </td>

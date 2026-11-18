@@ -90,12 +90,26 @@ describe('ToothDetailPanel', () => {
     expect(rows.map((row) => row.textContent)).toEqual(['#1occlusal73%', '#2distal42%']);
   });
 
-  it('shows "Unspecified" instead of crashing when a lesion surface is null', () => {
+  it('hides the Surface column when no lesion has a surface yet (ML-10 pending)', () => {
     const tooth = toothWith(0.73, [lesion({ id: 0, surface: null, probability: 0.55 })]);
     render(<ToothDetailPanel tooth={tooth} onClose={() => {}} />);
 
     const table = screen.getByRole('table', { name: 'Caries lesions' });
-    expect(within(table).getByRole('cell', { name: 'Unspecified' })).not.toBeNull();
+    expect(within(table).queryByRole('columnheader', { name: 'Surface' })).toBeNull();
+    expect(within(table).queryByText('Unspecified')).toBeNull();
+    expect(within(table).getByRole('columnheader', { name: 'Lesion' })).not.toBeNull();
     expect(within(table).getByRole('cell', { name: '55%' })).not.toBeNull();
+  });
+
+  it('shows the Surface column, with "Unspecified" for gaps, once any lesion has a surface', () => {
+    const tooth = toothWith(0.73, [
+      lesion({ id: 0, surface: 'distal', probability: 0.73 }),
+      lesion({ id: 1, surface: null, probability: 0.55 }),
+    ]);
+    render(<ToothDetailPanel tooth={tooth} onClose={() => {}} />);
+
+    const table = screen.getByRole('table', { name: 'Caries lesions' });
+    expect(within(table).getByRole('columnheader', { name: 'Surface' })).not.toBeNull();
+    expect(within(table).getByRole('cell', { name: 'Unspecified' })).not.toBeNull();
   });
 });
